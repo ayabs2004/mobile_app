@@ -1,0 +1,60 @@
+﻿# =============================================
+# SECRETS & ENVIRONMENT VARIABLES — NEVER COMMIT
+# =============================================
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+.env.staging
+*.env
+
+# Supabase local config secrets
+supabase/.env
+supabase/config.toml.local
+
+# API keys / credentials files
+secrets.json
+credentials.json
+*secret*
+*secrets*
+*credentials*
+
+# =============================================
+# Flutter / Dart
+# =============================================
+myapp/.dart_tool/
+myapp/.flutter-plugins
+myapp/.flutter-plugins-dependencies
+myapp/build/
+myapp/android/local.properties
+myapp/android/.gradle/
+myapp/android/key.jks
+myapp/android/*.jks
+myapp/android/key.properties
+myapp/android/keystore.jks
+myapp/android/*.keystore
+
+# iOS
+myapp/ios/.symlinks
+myapp/ios/Flutter/flutter_export_environment.sh
+myapp/ios/Pods/
+
+# =============================================
+# IDE & Editor
+# =============================================
+.vscode/settings.json
+.idea/
+*.iml
+
+# =============================================
+# OS Files
+# =============================================
+.DS_Store
+Thumbs.db
+
+# =============================================
+# Temporary / lock files
+# =============================================
+~$*
+*.tmp
