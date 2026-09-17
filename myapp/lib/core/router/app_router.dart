@@ -199,12 +199,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/players', builder: (c, s) => const AdminPlayersListScreen()),
       GoRoute(
         path: '/admin/players/new',
-        builder: (c, s) => const AdminPlayerFormScreen(isAmateur: false),
+        builder: (c, s) => const AdminPlayerFormScreen(playerType: 'pro'),
       ),
       GoRoute(
         path: '/admin/players/edit/:id',
         builder: (c, s) => AdminPlayerFormScreen(
-          isAmateur: false,
+          playerType: 'pro',
           existingPlayer: s.extra as PlayerModel,
         ),
       ),
@@ -225,12 +225,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin/amateurs/new',
-        builder: (c, s) => const AdminPlayerFormScreen(isAmateur: true),
+        builder: (c, s) => const AdminPlayerFormScreen(playerType: 'amateur'),
       ),
       GoRoute(
         path: '/admin/amateurs/edit/:id',
         builder: (c, s) => AdminPlayerFormScreen(
-          isAmateur: true,
+          playerType: 'amateur',
           existingPlayer: s.extra as PlayerModel,
         ),
       ),

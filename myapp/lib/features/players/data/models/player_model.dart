@@ -80,4 +80,56 @@ class PlayerModel {
       'is_active': isActive,
     };
   }
+}class PlayerMediaItem {
+  final String? id;
+  final String entityType;
+  final String entityId;
+  final String mediaType;
+  final String url;
+  final String? thumbnailUrl;
+  final String? caption;
+  final int displayOrder;
+  final bool isCover;
+  final DateTime? createdAt;
+
+  const PlayerMediaItem({
+    this.id,
+    required this.entityType,
+    required this.entityId,
+    required this.mediaType,
+    required this.url,
+    this.thumbnailUrl,
+    this.caption,
+    this.displayOrder = 0,
+    this.isCover = false,
+    this.createdAt,
+  });
+
+  factory PlayerMediaItem.fromJson(Map<String, dynamic> json) {
+    return PlayerMediaItem(
+      id: json['id'] as String?,
+      entityType: json['entity_type'] as String? ?? 'player',
+      entityId: json['entity_id'] as String? ?? '',
+      mediaType: json['media_type'] as String? ?? 'image',
+      url: json['url'] as String? ?? '',
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      caption: json['caption'] as String?,
+      displayOrder: json['display_order'] as int? ?? 0,
+      isCover: json['is_cover'] as bool? ?? false,
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'entity_type': entityType,
+      'entity_id': entityId,
+      'media_type': mediaType,
+      'url': url,
+      'thumbnail_url': thumbnailUrl,
+      'caption': caption,
+      'display_order': displayOrder,
+      'is_cover': isCover,
+    };
+  }
 }
