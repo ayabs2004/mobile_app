@@ -34,7 +34,7 @@ class CoachTeamExperience {
 }
 
 class CoachModel {
-  final String? coverUrl = null;
+  final String? coverUrl;
   final String id;
   final String sportId;
   final String fullName;
@@ -53,6 +53,7 @@ class CoachModel {
     required this.fullName,
     required this.slug,
     this.photoUrl,
+    this.coverUrl,
     this.biography,
     this.yearsExperience,
     this.certifications = const [],

@@ -1,5 +1,5 @@
 class PlayerModel {
-  final String? niveau = null;
+  final String? niveau;
   final String id;
   final String? competitionId; // pro uniquement
   final String? sportId; // amateur uniquement
@@ -27,6 +27,7 @@ class PlayerModel {
     required this.fullName,
     required this.slug,
     this.position,
+    this.niveau,
     this.jerseyNumber,
     this.nationality,
     this.profileImageUrl,

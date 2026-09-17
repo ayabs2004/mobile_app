@@ -78,4 +78,55 @@ class AdminPlayersRepository {
   Future<void> deletePlayer(String id) async {
     await SupabaseConfig.client.from('players').delete().eq('id', id);
   }
+  Future<List<PlayerMediaItem>> getPlayerMedia(String playerId) async {
+    final response = await SupabaseConfig.client
+        .from('media')
+        .select()
+        .eq('entity_type', 'player')
+        .eq('entity_id', playerId)
+        .order('display_order')
+        .order('created_at');
+
+    return (response as List)
+        .map((json) => PlayerMediaItem.fromJson(json))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _mediaPayload(List<PlayerMediaItem> items) {
+    return items.map((item) {
+      final json = item.toJson();
+      if (item.id != null) json['id'] = item.id;
+      return json;
+    }).toList();
+  }
+
+  Future<PlayerModel> createPlayerWithMedia(
+    PlayerModel player,
+    List<PlayerMediaItem> mediaItems,
+  ) async {
+    final res = await SupabaseConfig.client.rpc(
+      'admin_create_player_with_media',
+      params: {
+        'p_player': player.toJson(),
+        'p_media': _mediaPayload(mediaItems),
+      },
+    );
+    return PlayerModel.fromJson(res as Map<String, dynamic>);
+  }
+
+  Future<PlayerModel> updatePlayerWithMedia(
+    String playerId,
+    PlayerModel player,
+    List<PlayerMediaItem> mediaItems,
+  ) async {
+    final res = await SupabaseConfig.client.rpc(
+      'admin_update_player_with_media',
+      params: {
+        'p_player_id': playerId,
+        'p_player': player.toJson(),
+        'p_media': _mediaPayload(mediaItems),
+      },
+    );
+    return PlayerModel.fromJson(res as Map<String, dynamic>);
+  }
 }
