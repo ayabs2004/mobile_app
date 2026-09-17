@@ -77,12 +77,21 @@ class CoachModel {
     return past;
   }
 
+  /// Converts DiceBear SVG URLs to PNG so Flutter's image decoder can handle them.
+  static String? _fixSvgUrl(String? url) {
+    if (url == null) return null;
+    if (url.contains('dicebear.com') && url.contains('/svg')) {
+      return url.replaceFirst('/svg', '/png');
+    }
+    return url;
+  }
+
   factory CoachModel.fromJson(Map<String, dynamic> json) => CoachModel(
         id: json['id'] as String,
         sportId: json['sport_id'] as String,
         fullName: json['full_name'] as String,
         slug: json['slug'] as String,
-        photoUrl: json['photo_url'] as String?,
+        photoUrl: _fixSvgUrl(json['photo_url'] as String?),
         biography: json['biography'] as String?,
         yearsExperience: json['years_experience'] as int?,
         certifications: (json['certifications'] as List?)

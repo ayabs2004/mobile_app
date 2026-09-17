@@ -39,6 +39,15 @@ class PlayerModel {
     this.dateOfBirth,
   });
 
+  /// Converts DiceBear SVG URLs to PNG so Flutter's image decoder can handle them.
+  static String? _fixSvgUrl(String? url) {
+    if (url == null) return null;
+    if (url.contains('dicebear.com') && url.contains('/svg')) {
+      return url.replaceFirst('/svg', '/png');
+    }
+    return url;
+  }
+
   factory PlayerModel.fromJson(Map<String, dynamic> json) {
     return PlayerModel(
       id: json['id'] as String,
@@ -51,8 +60,8 @@ class PlayerModel {
       position: json['position'] as String?,
       jerseyNumber: json['jersey_number'] as int?,
       nationality: json['nationality'] as String?,
-      profileImageUrl: json['profile_image_url'] as String?,
-      coverImageUrl: json['cover_image_url'] as String?,
+      profileImageUrl: _fixSvgUrl(json['profile_image_url'] as String?),
+      coverImageUrl: _fixSvgUrl(json['cover_image_url'] as String?),
       biography: json['biography'] as String?,
       heightCm: json['height_cm'] as int?,
       weightKg: json['weight_kg'] as int?,
