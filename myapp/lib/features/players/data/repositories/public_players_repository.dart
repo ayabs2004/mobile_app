@@ -27,7 +27,7 @@ class PublicPlayersRepository {
         .from('player_statistics')
         .select()
         .inFilter('player_id', playerIds)
-        .order('season', ascending: false);
+        ;
 
     final statsByPlayer = <String, PlayerStatisticsModel>{};
     for (final row in (statsResponse as List)) {
@@ -65,7 +65,7 @@ class PublicPlayersRepository {
         .from('player_statistics')
         .select()
         .eq('player_id', playerId)
-        .order('season', ascending: false)
+        
         .limit(1)
         .maybeSingle();
 

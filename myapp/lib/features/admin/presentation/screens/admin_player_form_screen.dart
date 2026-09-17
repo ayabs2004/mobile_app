@@ -256,7 +256,7 @@ class _AdminPlayerFormScreenState extends ConsumerState<AdminPlayerFormScreen> {
           .from('player_statistics')
           .select()
           .eq('player_id', playerId)
-          .order('season', ascending: false)
+          
           .limit(1)
           .maybeSingle();
 

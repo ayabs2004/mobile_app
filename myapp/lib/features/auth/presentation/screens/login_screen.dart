@@ -131,7 +131,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(hintText: 'votre@email.com'),
+                  decoration: const InputDecoration(hintText: 'votremail@gmail.com'),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Email requis';
