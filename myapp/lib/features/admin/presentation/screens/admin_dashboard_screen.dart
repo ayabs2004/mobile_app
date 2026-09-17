@@ -19,6 +19,11 @@ class AdminDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Administration'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.home, color: Colors.white),
+            tooltip: 'Retour à l\'accueil',
+            onPressed: () => context.go('/home'),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.menu),
             color: AppTheme.surfaceColor,
