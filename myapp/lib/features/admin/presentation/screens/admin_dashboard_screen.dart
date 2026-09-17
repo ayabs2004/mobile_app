@@ -33,6 +33,7 @@ class AdminDashboardScreen extends ConsumerWidget {
   const PopupMenuItem(value: '/admin/academies', child: Text('Académies', style: TextStyle(color: Colors.white))),
   const PopupMenuItem(value: '/admin/coaches', child: Text('Coachs', style: TextStyle(color: Colors.white))),
   const PopupMenuItem(value: '/admin/users', child: Text('Utilisateurs', style: TextStyle(color: Colors.white))),
+  const PopupMenuItem(value: '/admin/fantasy/rounds', child: Text('Fantasy (rounds)', style: TextStyle(color: Colors.white))),
   
   if (isSuperAdmin) ...[
     const PopupMenuDivider(),

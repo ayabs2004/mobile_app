@@ -1,23 +1,25 @@
 import '../../../../core/config/supabase_config.dart';
 import '../../../players/data/models/player_model.dart';
-import '../models/fantasy_sport_settings_model.dart';
+import '../models/fantasy_round_model.dart';
 import '../models/fantasy_player_pricing_model.dart';
 import '../models/fantasy_team_model.dart';
-import '../models/fantasy_score_snapshot_model.dart';
 
 class FantasyRepository {
-  /// Réglages fantasy (budget, effectif max, max par club) pour un sport.
-  /// Remplace getCurrentRound : il n'y a plus de round, ces valeurs sont
-  /// globales et permanentes par sport.
-  Future<FantasySportSettingsModel> getSportSettings(String sportId) async {
+  /// Round actif (le plus récent avec status = 'open') pour un sport donné.
+  /// Le fantasy n'existe que pour le foot et le hand : chaque round est
+  /// rattaché à un seul sport.
+  Future<FantasyRoundModel?> getCurrentRound(String sportId) async {
     final res = await SupabaseConfig.client
-        .from('fantasy_sport_settings')
+        .from('fantasy_rounds')
         .select()
+        .eq('status', 'open')
         .eq('sport_id', sportId)
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
 
-    if (res == null) return FantasySportSettingsModel.defaults(sportId);
-    return FantasySportSettingsModel.fromJson(res);
+    if (res == null) return null;
+    return FantasyRoundModel.fromJson(res);
   }
 
   /// Liste des joueurs disponibles avec leur coût fantasy.
@@ -79,10 +81,8 @@ class FantasyRepository {
         .toList();
   }
 
-  /// Équipe courante de l'utilisateur pour un sport (null si pas encore
-  /// composée). Il n'existe qu'une seule équipe par utilisateur et par
-  /// sport : la composer à nouveau la remplace, pas de notion de round.
-  Future<FantasyTeamModel?> getMyTeam(String sportId) async {
+  /// Équipe de l'utilisateur pour un round donné (null si pas encore créée).
+  Future<FantasyTeamModel?> getMyTeam(String roundId) async {
     final userId = SupabaseConfig.client.auth.currentUser?.id;
     if (userId == null) return null;
 
@@ -90,48 +90,28 @@ class FantasyRepository {
         .from('fantasy_teams')
         .select()
         .eq('user_id', userId)
-        .eq('sport_id', sportId)
+        .eq('round_id', roundId)
         .maybeSingle();
 
     if (teamRes == null) return null;
 
     final playersRes = await SupabaseConfig.client
         .from('fantasy_team_players')
-        .select('player_id, slot_id')
+        .select('player_id')
         .eq('team_id', teamRes['id']);
 
-    final rows = playersRes as List;
-    final playerIds = rows.map((r) => r['player_id'] as String).toList();
+    final playerIds =
+        (playersRes as List).map((r) => r['player_id'] as String).toList();
 
-    // Poste -> joueur, uniquement pour les lignes qui ont un slot_id
-    // (schéma fixe) ; ignoré en mode libre.
-    final slotAssignments = <String, String?>{
-      for (final r in rows)
-        if (r['slot_id'] != null) r['slot_id'] as String: r['player_id'] as String,
-    };
-
-    return FantasyTeamModel.fromJson(
-      teamRes,
-      playerIds: playerIds,
-      slotAssignments: slotAssignments,
-    );
+    return FantasyTeamModel.fromJson(teamRes, playerIds: playerIds);
   }
 
-  /// Crée ou met à jour l'équipe de l'utilisateur pour un sport, puis
-  /// capture un instantané (score + rang courants) dans l'historique —
-  /// c'est ce qui permet d'afficher l'évolution du classement d'un essai
-  /// à l'autre, sans notion de round.
-  ///
-  /// [formation] : clé du schéma tactique ('libre', '4-4-2'…), ou null.
-  /// [slotAssignments] : poste -> joueur pour un schéma fixe (peut être
-  /// vide en mode libre) ; sert uniquement à retrouver le poste de chaque
-  /// joueur au moment de l'insertion.
+  /// Crée ou met à jour l'équipe de l'utilisateur pour un round.
+  /// (upsert du "header" puis remplacement complet des joueurs)
   Future<void> saveTeam({
-    required String sportId,
+    required String roundId,
     required List<String> playerIds,
     String? captainPlayerId,
-    String? formation,
-    Map<String, String?> slotAssignments = const {},
   }) async {
     final userId = SupabaseConfig.client.auth.currentUser?.id;
     if (userId == null) {
@@ -143,23 +123,15 @@ class FantasyRepository {
         .upsert(
           {
             'user_id': userId,
-            'sport_id': sportId,
+            'round_id': roundId,
             'captain_player_id': captainPlayerId,
-            'formation': formation,
           },
-          onConflict: 'user_id,sport_id',
+          onConflict: 'user_id,round_id',
         )
         .select()
         .single();
 
     final teamId = teamRes['id'] as String;
-
-    // Joueur -> poste, pour retrouver rapidement le slot_id de chaque
-    // joueur à insérer (inverse de slotAssignments).
-    final slotByPlayer = <String, String>{
-      for (final entry in slotAssignments.entries)
-        if (entry.value != null) entry.value!: entry.key,
-    };
 
     // Remplace la sélection complète (simple pour une V0)
     await SupabaseConfig.client
@@ -173,37 +145,26 @@ class FantasyRepository {
                 .map((playerId) => {
                       'team_id': teamId,
                       'player_id': playerId,
-                      'slot_id': slotByPlayer[playerId],
                     })
                 .toList(),
           );
     }
-
-    // Capture l'essai dans l'historique (score + rang à cet instant).
-    // Doit être appelé après l'insert des joueurs pour que le calcul
-    // côté SQL voie bien la composition à jour.
-    await SupabaseConfig.client.rpc(
-      'record_fantasy_score_snapshot',
-      params: {'p_sport_id': sportId, 'p_team_id': teamId},
-    );
   }
 
-  /// Classement live d'un sport, trié par points décroissants.
+  /// Classement pour un round, trié par points décroissants.
   /// Passe par une fonction Postgres SECURITY DEFINER (get_fantasy_leaderboard)
   /// plutôt que par une vue, pour que l'élévation de privilège nécessaire
   /// à l'agrégation cross-utilisateurs soit explicite et auditable.
   ///
-  /// Les points ne sont pas saisis manuellement : la fonction calcule
-  /// directement le score de chaque joueur d'une équipe à partir de
-  /// `player_statistics` (mêmes coefficients que
+  /// Les points ne sont plus saisis manuellement round par round : la
+  /// fonction calcule directement le score de chaque joueur d'une équipe
+  /// à partir de `player_statistics` (mêmes coefficients que
   /// `PlayerStatisticsModel.score` côté client), puis somme par
-  /// utilisateur. Il n'y a plus qu'un seul classement par sport (pas de
-  /// distinction round / général) : il varie en direct à chaque nouvel
-  /// essai ou mise à jour des stats.
-  Future<List<FantasyLeaderboardEntry>> getLeaderboard(String sportId) async {
+  /// utilisateur. Voir la migration SQL fournie côté backend.
+  Future<List<FantasyLeaderboardEntry>> getLeaderboard(String roundId) async {
     final res = await SupabaseConfig.client.rpc(
       'get_fantasy_leaderboard',
-      params: {'p_sport_id': sportId},
+      params: {'p_round_id': roundId},
     );
 
     return (res as List)
@@ -212,19 +173,21 @@ class FantasyRepository {
         .toList();
   }
 
-  /// Historique des essais de l'utilisateur pour un sport : score et rang
-  /// capturés à chaque sauvegarde d'équipe, triés chronologiquement.
-  Future<List<FantasyScoreSnapshotModel>> getScoreHistory(
+  /// Classement général pour un sport : cumul des points de chaque
+  /// utilisateur sur tous ses rounds (clos ou en cours) de ce sport.
+  /// Passe par la RPC `get_fantasy_leaderboard_general` (même logique
+  /// SECURITY DEFINER que le classement par round).
+  Future<List<FantasyGeneralLeaderboardEntry>> getGeneralLeaderboard(
     String sportId,
   ) async {
     final res = await SupabaseConfig.client.rpc(
-      'get_my_fantasy_score_history',
+      'get_fantasy_leaderboard_general',
       params: {'p_sport_id': sportId},
     );
 
     return (res as List)
-        .map((json) =>
-            FantasyScoreSnapshotModel.fromJson(json as Map<String, dynamic>))
+        .map((json) => FantasyGeneralLeaderboardEntry.fromJson(
+            json as Map<String, dynamic>))
         .toList();
   }
 }

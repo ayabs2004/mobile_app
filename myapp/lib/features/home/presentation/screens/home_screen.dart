@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../sports/presentation/providers/sports_provider.dart';
 import '../../../sports/data/models/competition_model.dart';
+import '../../../sports/data/models/sport_model.dart';
 import '../../../sports/data/repositories/sports_repository.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/error_utils.dart';
@@ -14,6 +16,61 @@ import '../../../players/presentation/providers/public_players_provider.dart';
 import '../../../coaches/presentation/providers/coachs_provider.dart';
 import '../../../coaches/data/models/coach_model.dart';
 import '../../../players/data/models/player_model.dart';
+import '../../../fantasy/presentation/providers/fantasy_provider.dart';
+import '../../../fantasy/data/models/fantasy_round_model.dart';
+import '../../../fantasy/core/fantasy_sport_utils.dart';
+
+class HomeSearchResult {
+  final List<PlayerModel> players;
+  final List<CoachModel> coaches;
+  final List<CompetitionModel> competitions;
+
+  const HomeSearchResult({
+    this.players = const [],
+    this.coaches = const [],
+    this.competitions = const [],
+  });
+
+  bool get isEmpty => players.isEmpty && coaches.isEmpty && competitions.isEmpty;
+}
+
+final homeSearchProvider =
+    FutureProvider.autoDispose.family<HomeSearchResult, String>((ref, query) async {
+  final clean = query.trim();
+  if (clean.isEmpty) return const HomeSearchResult();
+
+  final playersRes = await SupabaseConfig.client
+      .from('players_public')
+      .select()
+      .or('full_name.ilike.%$clean%,team_name.ilike.%$clean%')
+      .eq('is_active', true)
+      .limit(10);
+
+  final coachesRes = await SupabaseConfig.client
+      .from('coaches_public')
+      .select()
+      .ilike('full_name', '%$clean%')
+      .limit(10);
+
+  final competitionsRes = await SupabaseConfig.client
+      .from('competitions')
+      .select()
+      .ilike('name', '%$clean%')
+      .limit(5);
+
+  final players =
+      (playersRes as List).map((j) => PlayerModel.fromJson(j)).toList();
+  final coaches =
+      (coachesRes as List).map((j) => CoachModel.fromJson(j)).toList();
+  final competitions =
+      (competitionsRes as List).map((j) => CompetitionModel.fromJson(j)).toList();
+
+  return HomeSearchResult(
+    players: players,
+    coaches: coaches,
+    competitions: competitions,
+  );
+});
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,13 +81,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _selectedSportId;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(analyticsRepositoryProvider).logEvent(eventType: 'app_open');
-    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -44,6 +106,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ?.split(' ')
             .first ??
         'Sportif';
+
+    // Le fantasy n'existe que pour le foot et le hand : on regarde le sport
+    // actuellement sélectionné dans le sélecteur pour savoir si la bannière
+    // doit apparaître, et pour filtrer les joueurs proposés dans l'équipe.
+    final sportsList = sportsAsync.valueOrNull;
+    SportModel? selectedSportForFantasy;
+    if (sportsList != null && sportsList.isNotEmpty) {
+      selectedSportForFantasy = sportsList.firstWhere(
+        (s) => s.id == _selectedSportId,
+        orElse: () => sportsList.first,
+      );
+    }
+    final showFantasy = selectedSportForFantasy != null &&
+        isFantasySport(selectedSportForFantasy);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -110,111 +186,344 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               tooltip: 'Espace admin',
                               onPressed: () => context.push('/admin'),
                             ),
-                          _NotificationBell(onTap: () {
-                            // TODO: écran notifications
-                          }),
                         ],
                       ),
                       const SizedBox(height: 20),
                       // ---------- SEARCH BAR ----------
                       TextField(
+                        controller: _searchController,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          hintText: 'Rechercher un joueur, une équipe...',
+                          hintText: 'Rechercher un joueur, un coach, une compétition...',
                           prefixIcon: const Icon(Icons.search,
                               color: AppTheme.textSecondary),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear,
+                                      color: AppTheme.textSecondary),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
                         ),
-                        onTap: () {
-                          // TODO: écran de recherche
+                        onChanged: (val) {
+                          setState(() => _searchQuery = val);
                         },
                       ),
                       const SizedBox(height: 24),
                       // ---------- SÉLECTEUR DE SPORT ----------
-                      sportsAsync.when(
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (sports) {
-                          if (sports.isEmpty) return const SizedBox.shrink();
-                          _selectedSportId ??= sports.first.id;
-                          final selectedSport = sports.firstWhere(
-                            (s) => s.id == _selectedSportId,
-                            orElse: () => sports.first,
-                          );
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'SPORTS',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
+                      if (_searchQuery.trim().isEmpty)
+                        sportsAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (sports) {
+                            if (sports.isEmpty) return const SizedBox.shrink();
+                            _selectedSportId ??= sports.first.id;
+                            final selectedSport = sports.firstWhere(
+                              (s) => s.id == _selectedSportId,
+                              orElse: () => sports.first,
+                            );
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'SPORTS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    '${sports.length} disciplines',
-                                    style: const TextStyle(
-                                        color: AppTheme.accentGreen,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 86,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: sports.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(width: 10),
-                                  itemBuilder: (context, index) {
-                                    final sport = sports[index];
-                                    final selected =
-                                        sport.id == _selectedSportId;
-                                    return _SportChip(
-                                      name: sport.name,
-                                      emoji: sport.iconEmoji ?? '🏆',
-                                      selected: selected,
-                                      onTap: () => setState(
-                                          () => _selectedSportId = sport.id),
-                                    );
-                                  },
+                                    Text(
+                                      '${sports.length} disciplines',
+                                      style: const TextStyle(
+                                          color: AppTheme.accentGreen,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 28),
-                              Row(
-                                children: [
-                                  Text(selectedSport.iconEmoji ?? '🏆',
-                                      style: const TextStyle(fontSize: 18)),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    selectedSport.name.toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: 86,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: sports.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 10),
+                                    itemBuilder: (context, index) {
+                                      final sport = sports[index];
+                                      final selected =
+                                          sport.id == _selectedSportId;
+                                      return _SportChip(
+                                        name: sport.name,
+                                        emoji: sport.iconEmoji ?? '🏆',
+                                        selected: selected,
+                                        onTap: () => setState(
+                                            () => _selectedSportId = sport.id),
+                                      );
+                                    },
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                            ],
-                          );
-                        },
-                      ),
+                                ),
+                                const SizedBox(height: 28),
+                                Row(
+                                  children: [
+                                    Text(selectedSport.iconEmoji ?? '🏆',
+                                        style: const TextStyle(fontSize: 18)),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      selectedSport.name.toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),
               ),
 
+              // ---------- FANTASY (bannière d'accès) ----------
+              // Masquée pendant une recherche, et réservée aux sports foot
+              // et hand : le module fantasy n'existe pas pour les autres.
+              if (_searchQuery.trim().isEmpty && showFantasy)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
+                  sliver: SliverToBoxAdapter(
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final roundAsync = ref.watch(
+                          currentFantasyRoundProvider(
+                              selectedSportForFantasy!.id),
+                        );
+                        return roundAsync.when(
+                          loading: () => const _FantasyBanner(
+                            round: null,
+                            loading: true,
+                            sportId: null,
+                            sportName: null,
+                          ),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (round) => _FantasyBanner(
+                            round: round,
+                            loading: false,
+                            sportId: selectedSportForFantasy!.id,
+                            sportName: selectedSportForFantasy.name,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+              // ---------- RÉSULTATS DE RECHERCHE (JOUEURS UNIQUEMENT) ----------
+              if (_searchQuery.trim().isNotEmpty)
+                Consumer(
+                  builder: (context, ref, _) {
+                    final searchAsync =
+                        ref.watch(homeSearchProvider(_searchQuery.trim()));
+
+                    return searchAsync.when(
+                      loading: () => const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 60),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppTheme.accentGreen,
+                            ),
+                          ),
+                        ),
+                      ),
+                      error: (err, st) => SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 60, horizontal: 20),
+                          child: Center(
+                            child: Text(
+                              ErrorUtils.friendlyMessage(err),
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary),
+                            ),
+                          ),
+                        ),
+                      ),
+                      data: (results) {
+                        if (results.isEmpty) {
+                          return SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 40, horizontal: 20),
+                              child: Center(
+                                child: Text(
+                                  'Aucun joueur trouvé pour "${_searchQuery.trim()}".',
+                                  style: const TextStyle(
+                                      color: AppTheme.textSecondary),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              const SizedBox(height: 10),
+                              if (results.players.isNotEmpty) ...[
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'JOUEURS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${results.players.length} trouvé(s)',
+                                      style: const TextStyle(
+                                        color: AppTheme.accentGreen,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                for (final player in results.players)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _PlayerRow(
+                                      playerWithDetails: PlayerWithDetails(
+                                        player: player,
+                                        teamName: player.teamName,
+                                      ),
+                                      onTap: () =>
+                                          context.push('/player/${player.id}'),
+                                    ),
+                                  ),
+                                const SizedBox(height: 20),
+                              ],
+                              if (results.coaches.isNotEmpty) ...[
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'COACHS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${results.coaches.length} trouvé(s)',
+                                      style: const TextStyle(
+                                        color: AppTheme.accentGreen,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                for (final coach in results.coaches)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _CoachRow(
+                                      coach: coach,
+                                      onTap: () =>
+                                          context.push('/coach/${coach.id}'),
+                                    ),
+                                  ),
+                                const SizedBox(height: 20),
+                              ],
+                              if (results.competitions.isNotEmpty) ...[
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'COMPÉTITIONS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${results.competitions.length} trouvée(s)',
+                                      style: const TextStyle(
+                                        color: AppTheme.accentGreen,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                for (final comp in results.competitions)
+                                  Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.surfaceColor,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: ListTile(
+                                      leading: const Icon(Icons.emoji_events,
+                                          color: AppTheme.accentGreen),
+                                      title: Text(comp.name,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold)),
+                                      trailing: const Icon(
+                                          Icons.arrow_forward_ios,
+                                          color: AppTheme.textSecondary,
+                                          size: 14),
+                                      onTap: () {
+                                        context.push(
+                                          '/sport/sport/competition/${comp.id}/players',
+                                          extra: {
+                                            'sportName': '',
+                                            'competitionName': comp.name,
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ]),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
               // ---------- LIGUES DU SPORT SÉLECTIONNÉ, AVEC LEURS JOUEURS ----------
-              if (_selectedSportId != null)
+              if (_searchQuery.trim().isEmpty && _selectedSportId != null)
                 Consumer(
                   builder: (context, ref, _) {
                     final competitionsAsync =
@@ -299,33 +608,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
 
               // ---------- COACHS DU SPORT SÉLECTIONNÉ (indépendant des compétitions) ----------
-              // Prob1 fix: la section n'est affichée que si des coachs existent
-              if (_selectedSportId != null)
+              // Masquée pendant une recherche
+              if (_searchQuery.trim().isEmpty && _selectedSportId != null)
                 Consumer(
                   builder: (context, ref, _) {
+                    final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
+                    if (currentSport == null || !currentSport.hasCoaches) {
+                      return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    }
+
                     final coachesAsync = ref.watch(
                         publicCoachesBySportProvider(_selectedSportId!));
                     return coachesAsync.when(
                       loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
                       error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
                       data: (coaches) {
-                        if (coaches.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        if (coaches.isEmpty) {
+                          return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        }
                         return SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
                           sliver: SliverToBoxAdapter(
                             child: _SectionShell(
                               icon: Icons.sports,
                               label: 'Coachs',
-                              child: _CoachesList(
-                                sportId: _selectedSportId!,
-                                onSeeAll: () {
-                                  final sport = sportsAsync.valueOrNull
-                                      ?.firstWhere((s) => s.id == _selectedSportId);
-                                  context.push('/sport/${sport?.slug}/coachs', extra: {
-                                    'sportId': _selectedSportId,
-                                    'sportName': sport?.name,
-                                  });
-                                },
+                              child: Column(
+                                children: [
+                                  for (final c in coaches.take(2))
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: _CoachRow(
+                                        coach: c,
+                                        onTap: () =>
+                                            context.push('/coach/${c.id}'),
+                                      ),
+                                    ),
+                                  if (coaches.length > 2)
+                                    _SeeAllLink(
+                                      count: coaches.length,
+                                      label: 'coachs',
+                                      onTap: () => context.push(
+                                          '/sport/${currentSport.slug}/coachs',
+                                          extra: {
+                                            'sportId': _selectedSportId,
+                                            'sportName': currentSport.name,
+                                          }),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -336,19 +665,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
 
               // ---------- AMATEURS DU SPORT SÉLECTIONNÉ ----------
-              // Prob1 fix: la section n'est affichée que si des amateurs existent
-              if (_selectedSportId != null)
+              // Masquée pendant une recherche
+              if (_searchQuery.trim().isEmpty && _selectedSportId != null)
                 Consumer(
                   builder: (context, ref, _) {
+                    final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
+                    if (currentSport == null || !currentSport.hasAmateurs) {
+                      return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    }
+
                     final amateursAsync = ref.watch(
                         publicAmateurPlayersBySportProvider(_selectedSportId!));
                     return amateursAsync.when(
                       loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
                       error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
                       data: (players) {
-                        if (players.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-                        const maxShown = 2;
-                        final shown = players.take(maxShown).toList();
+                        if (players.isEmpty) {
+                          return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        }
                         return SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
                           sliver: SliverToBoxAdapter(
@@ -357,7 +691,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               label: 'Amateurs',
                               child: Column(
                                 children: [
-                                  for (final p in shown)
+                                  for (final p in players.take(2))
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 10),
                                       child: _AmateurRow(
@@ -366,21 +700,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             context.push('/player/${p.id}'),
                                       ),
                                     ),
-                                  if (players.length > maxShown)
+                                  if (players.length > 2)
                                     _SeeAllLink(
                                       count: players.length,
                                       label: 'amateurs',
-                                      onTap: () {
-                                        final sport = sportsAsync.valueOrNull
-                                            ?.firstWhere((s) =>
-                                                s.id == _selectedSportId);
-                                        context.push(
-                                            '/sport/${sport?.slug}/amateurs',
-                                            extra: {
-                                              'sportId': _selectedSportId,
-                                              'sportName': sport?.name,
-                                            });
-                                      },
+                                      onTap: () => context.push(
+                                          '/sport/${currentSport.slug}/amateurs',
+                                          extra: {
+                                            'sportId': _selectedSportId,
+                                            'sportName': currentSport.name,
+                                          }),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
+              // ---------- ACADÉMIES DU SPORT SÉLECTIONNÉ ----------
+              // Masquée pendant une recherche
+              if (_searchQuery.trim().isEmpty && _selectedSportId != null)
+                Consumer(
+                  builder: (context, ref, _) {
+                    final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
+                    if (currentSport == null || !currentSport.hasAcademies) {
+                      return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    }
+
+                    final academiesAsync = ref.watch(
+                        publicAcademiePlayersBySportProvider(_selectedSportId!));
+                    return academiesAsync.when(
+                      loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                      error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                      data: (players) {
+                        if (players.isEmpty) {
+                          return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        }
+                        return SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
+                          sliver: SliverToBoxAdapter(
+                            child: _SectionShell(
+                              icon: Icons.school,
+                              label: 'Académies',
+                              child: Column(
+                                children: [
+                                  for (final p in players.take(2))
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: _AcademieRow(
+                                        player: p,
+                                        onTap: () =>
+                                            context.push('/player/${p.id}'),
+                                      ),
+                                    ),
+                                  if (players.length > 2)
+                                    _SeeAllLink(
+                                      count: players.length,
+                                      label: 'académies',
+                                      onTap: () => context.push(
+                                          '/sport/${currentSport.slug}/academies',
+                                          extra: {
+                                            'sportId': _selectedSportId,
+                                            'sportName': currentSport.name,
+                                          }),
                                     ),
                                 ],
                               ),
@@ -458,6 +844,187 @@ class _SportChip extends StatelessWidget {
   }
 }
 
+/// Bannière d'accès au module Fantasy, affichée en haut du Home.
+/// - Si un round est ouvert : affiche son nom + accès rapide (composer,
+///   mon équipe, classement).
+/// - Si aucun round n'est actif : affiche un état neutre non cliquable.
+class _FantasyBanner extends StatelessWidget {
+  final FantasyRoundModel? round;
+  final bool loading;
+  final String? sportId;
+  final String? sportName;
+
+  const _FantasyBanner({
+    required this.round,
+    required this.loading,
+    required this.sportId,
+    required this.sportName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Center(
+          child: SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppTheme.accentGreen,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final hasOpenRound = round != null && round!.isOpen;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: hasOpenRound ? AppTheme.logoGradient : null,
+        color: hasOpenRound ? null : AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: hasOpenRound ? 0.18 : 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.sports_soccer, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'FANTASY LEAGUE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasOpenRound
+                          ? round!.name
+                          : 'Aucun round actif pour le moment',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: hasOpenRound ? 0.9 : 0.6),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hasOpenRound) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _FantasyActionChip(
+                    label: 'Composer',
+                    icon: Icons.add_task,
+                    onTap: () => context.push('/fantasy', extra: {
+                      'sportId': sportId,
+                      'sportName': sportName,
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _FantasyActionChip(
+                    label: 'Mon équipe',
+                    icon: Icons.groups,
+                    onTap: () => context.push('/fantasy/team', extra: {
+                      'sportId': sportId,
+                      'sportName': sportName,
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _FantasyActionChip(
+                    label: 'Classement',
+                    icon: Icons.leaderboard,
+                    onTap: () => context.push('/fantasy/leaderboard', extra: {
+                      'sportId': sportId,
+                      'sportName': sportName,
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FantasyActionChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _FantasyActionChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 18),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Section d'une ligue/compétition : icône + barre verticale + nom vertical,
 /// puis la liste des joueurs de cette compétition.
 class _CompetitionSection extends ConsumerWidget {
@@ -471,73 +1038,86 @@ class _CompetitionSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ---------- Icône + nom de la ligue en vertical ----------
-          SizedBox(
-            width: 34,
-            child: Column(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.logoGradient,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.emoji_events,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fill(
-                        child: Center(
-                          child: Container(
-                            width: 2,
-                            color:
-                                AppTheme.accentGreen.withValues(alpha: 0.25),
-                          ),
-                        ),
+    final playersAsync =
+        ref.watch(publicPlayersByCompetitionProvider(competition.id));
+
+    return playersAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (players) {
+        if (players.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ---------- Icône + nom de la ligue en vertical ----------
+              SizedBox(
+                width: 34,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.logoGradient,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      RotatedBox(
-                        quarterTurns: 3,
-                        child: Text(
-                          competition.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppTheme.accentGreen,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
+                      child: const Icon(
+                        Icons.emoji_events,
+                        color: Colors.white,
+                        size: 16,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fill(
+                            child: Center(
+                              child: Container(
+                                width: 2,
+                                color:
+                                    AppTheme.accentGreen.withValues(alpha: 0.25),
+                              ),
+                            ),
+                          ),
+                          RotatedBox(
+                            quarterTurns: 3,
+                            child: Text(
+                              competition.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppTheme.accentGreen,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              // ---------- Contenu : joueurs ----------
+              Expanded(
+                child: _PlayersList(
+                  competitionId: competition.id,
+                  onSeeAll: onSeeAll,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          // ---------- Contenu : joueurs ----------
-          Expanded(
-            child: _PlayersList(
-              competitionId: competition.id,
-              onSeeAll: onSeeAll,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -651,10 +1231,7 @@ class _PlayersList extends ConsumerWidget {
       ),
       data: (players) {
         if (players.isEmpty) {
-          return const Text(
-            'Aucun joueur pour le moment.',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-          );
+          return const SizedBox.shrink();
         }
         final shown = players.take(_maxShown).toList();
         return Column(
@@ -713,10 +1290,7 @@ class _CoachesList extends ConsumerWidget {
       ),
       data: (coaches) {
         if (coaches.isEmpty) {
-          return const Text(
-            'Aucun coach pour le moment.',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-          );
+          return const SizedBox.shrink();
         }
         final shown = coaches.take(_maxShown).toList();
         return Column(
@@ -1140,6 +1714,119 @@ class _NotificationBell extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Une ligne "joueur académie", calquée sur _AmateurRow avec le niveau en badge.
+class _AcademieRow extends StatelessWidget {
+  final PlayerModel player;
+  final VoidCallback onTap;
+
+  const _AcademieRow({
+    required this.player,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarColor = _colorForId(player.id);
+
+    return Material(
+      color: AppTheme.surfaceColor,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 21,
+                backgroundColor: avatarColor,
+                backgroundImage: player.profileImageUrl != null
+                    ? NetworkImage(player.profileImageUrl!)
+                    : null,
+                child: player.profileImageUrl == null
+                    ? Text(
+                        _initialsFromName(player.fullName),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      player.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        if (player.niveau != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.accentGreen.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              player.niveau!,
+                              style: const TextStyle(
+                                color: AppTheme.accentGreen,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        if (player.niveau != null && player.position != null)
+                          const SizedBox(width: 6),
+                        if (player.position != null)
+                          Flexible(
+                            child: Text(
+                              player.position!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Voir le profil',
+                      style: TextStyle(
+                        color: AppTheme.accentGreen,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios,
+                  size: 12, color: AppTheme.textSecondary),
+            ],
+          ),
         ),
       ),
     );

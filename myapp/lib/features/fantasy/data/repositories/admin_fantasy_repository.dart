@@ -1,46 +1,55 @@
 import '../../../../core/config/supabase_config.dart';
-import '../../../fantasy/data/models/fantasy_sport_settings_model.dart';
+import '../../../fantasy/data/models/fantasy_round_model.dart';
 import '../../../fantasy/data/models/fantasy_player_pricing_model.dart';
 import '../../../players/data/models/player_model.dart';
 
 class AdminFantasyRepository {
-  // ---------------- Réglages par sport ----------------
+  // ---------------- Rounds ----------------
   //
-  // Il n'y a plus de round : le fantasy tourne en continu. Un sport (foot
-  // ou hand) a simplement un budget, un effectif max et un max par club,
-  // stockés dans fantasy_sport_settings. Les points sont toujours calculés
-  // à partir des statistiques du joueur (déjà saisies et scorées dans le
-  // formulaire joueur), jamais attribués manuellement.
+  // Les points fantasy ne sont plus attribués manuellement round par round :
+  // ils sont calculés à partir des statistiques du joueur (déjà saisies et
+  // scorées dans le formulaire joueur). Un round sert uniquement à ouvrir/
+  // fermer une période de sélection d'équipe pour un sport donné (foot ou
+  // hand) ; par défaut tous les joueurs (pro + amateur, hors académie) de
+  // ce sport sont proposés aux utilisateurs.
 
-  Future<FantasySportSettingsModel> getSportSettings(String sportId) async {
+  Future<List<FantasyRoundModel>> listRounds() async {
     final res = await SupabaseConfig.client
-        .from('fantasy_sport_settings')
+        .from('fantasy_rounds')
         .select()
-        .eq('sport_id', sportId)
-        .maybeSingle();
+        .order('created_at', ascending: false);
 
-    if (res == null) return FantasySportSettingsModel.defaults(sportId);
-    return FantasySportSettingsModel.fromJson(res);
+    return (res as List).map((j) => FantasyRoundModel.fromJson(j)).toList();
   }
 
-  Future<FantasySportSettingsModel> upsertSportSettings({
+  Future<FantasyRoundModel> createRound({
+    required String name,
     required String sportId,
     double budget = 100.0,
     int maxPlayers = 11,
     int maxPerClub = 3,
   }) async {
     final res = await SupabaseConfig.client
-        .from('fantasy_sport_settings')
-        .upsert({
-          'sport_id': sportId,
+        .from('fantasy_rounds')
+        .insert({
+          'name': name,
+          'status': 'open',
           'budget': budget,
           'max_players': maxPlayers,
           'max_per_club': maxPerClub,
+          'sport_id': sportId,
         })
         .select()
         .single();
 
-    return FantasySportSettingsModel.fromJson(res);
+    return FantasyRoundModel.fromJson(res);
+  }
+
+  Future<void> setRoundStatus(String roundId, String status) async {
+    await SupabaseConfig.client
+        .from('fantasy_rounds')
+        .update({'status': status})
+        .eq('id', roundId);
   }
 
   // ---------------- Pricing (coût des joueurs) ----------------

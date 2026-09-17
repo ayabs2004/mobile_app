@@ -43,7 +43,7 @@ import '../../features/admin/presentation/screens/admin_academie_players_list_sc
 import '../../features/fantasy/presentation/screens/fantasy_team_builder_screen.dart';
 import '../../features/fantasy/presentation/screens/fantasy_my_team_screen.dart';
 import '../../features/fantasy/presentation/screens/fantasy_leaderboard_screen.dart';
-
+import '../../features/fantasy/presentation/screens/admin_fantasy_rounds_screen.dart';
 
 class AuthChangeNotifier extends ChangeNotifier {
   AuthChangeNotifier() {
@@ -346,6 +346,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/audit-log', builder: (c, s) => const AdminAuditLogScreen()),
 
 
+      // ---- Fantasy (public) ----
+      GoRoute(
+        path: '/fantasy',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return FantasyTeamBuilderScreen(
+            sportId: extra?['sportId'] as String?,
+            sportName: extra?['sportName'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/fantasy/team',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return FantasyMyTeamScreen(
+            sportId: extra?['sportId'] as String?,
+            sportName: extra?['sportName'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/fantasy/leaderboard',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return FantasyLeaderboardScreen(
+            sportId: extra?['sportId'] as String?,
+            sportName: extra?['sportName'] as String?,
+          );
+        },
+      ),
+
+      // ---- Fantasy (admin) ----
+      GoRoute(
+        path: '/admin/fantasy/rounds',
+        builder: (c, s) => const AdminFantasyRoundsScreen(),
+      ),
     ],
   );
 });
