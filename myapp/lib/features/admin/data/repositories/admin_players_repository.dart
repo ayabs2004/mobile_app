@@ -19,6 +19,7 @@ class AdminPlayersRepository {
   /// Joueurs PRO, filtrés optionnellement par sport (via la compétition).
   Future<List<PlayerModel>> getPlayersBySport(
     String? sportId, {
+    String? competitionId,
     String search = '',
   }) async {
     var query = SupabaseConfig.client
@@ -29,12 +30,35 @@ class AdminPlayersRepository {
     if (sportId != null) {
       query = query.eq('competitions.sport_id', sportId);
     }
+    if (competitionId != null) {
+      query = query.eq('competition_id', competitionId);
+    }
     if (search.trim().isNotEmpty) {
       query = query.ilike('full_name', '%${search.trim()}%');
     }
 
     final response = await query.order('full_name');
     return (response as List).map((json) => PlayerModel.fromJson(json)).toList();
+  }
+
+  Future<List<PlayerModel>> getAcademiePlayers({
+    String search = '',
+    String? sportId,
+  }) async {
+    var query = SupabaseConfig.client
+        .from('players')
+        .select()
+        .eq('type', 'academie');
+
+    if (sportId != null) {
+      query = query.eq('sport_id', sportId);
+    }
+    if (search.trim().isNotEmpty) {
+      query = query.ilike('full_name', '%${search.trim()}%');
+    }
+
+    final response = await query.order('full_name');
+    return (response as List).map((j) => PlayerModel.fromJson(j)).toList();
   }
 
   /// Joueurs AMATEURS, filtrés optionnellement par sport (colonne directe).

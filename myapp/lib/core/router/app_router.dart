@@ -38,6 +38,13 @@ import '../../features/auth/presentation/screens/account_screen.dart';
 import '../../features/coaches/presentation/screens/public_coaches_list_screen.dart';
 import '../../features/coaches/presentation/screens/public_coach_detail_screen.dart';
 import '../../features/players/presentation/screens/public_amateurs_list_screen.dart';
+import '../../features/players/presentation/screens/public_academies_list_screen.dart';
+import '../../features/admin/presentation/screens/admin_academie_players_list_screen.dart';
+import '../../features/fantasy/presentation/screens/fantasy_team_builder_screen.dart';
+import '../../features/fantasy/presentation/screens/fantasy_my_team_screen.dart';
+import '../../features/fantasy/presentation/screens/fantasy_leaderboard_screen.dart';
+
+
 class AuthChangeNotifier extends ChangeNotifier {
   AuthChangeNotifier() {
     SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
@@ -195,11 +202,46 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s) => AdminCompetitionsListScreen(sport: s.extra as SportModel),
       ),
 
+      // ---- Joueurs PRO via flux Sports > Compétition ----
+      GoRoute(
+        path: '/admin/sports/:sportId/competitions/:competitionId/players',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          final competition = extra?['competition'] as CompetitionModel?;
+          final sport = extra?['sport'] as SportModel?;
+          return AdminPlayersListScreen(
+            sportId: s.pathParameters['sportId'],
+            competitionId: s.pathParameters['competitionId'],
+            competitionName: competition?.name,
+            sportName: sport?.name,
+          );
+        },
+      ),
+
+      // ---- Amateurs via flux Sports ----
+      GoRoute(
+        path: '/admin/sports/:sportId/amateurs',
+        builder: (c, s) {
+          final sport = s.extra as SportModel?;
+          return AdminAmateurPlayersListScreen(
+            sportId: s.pathParameters['sportId'],
+            sportName: sport?.name,
+          );
+        },
+      ),
+
       // ---- Joueurs PRO (vue globale, sidebar, filtre par sport) ----
       GoRoute(path: '/admin/players', builder: (c, s) => const AdminPlayersListScreen()),
       GoRoute(
         path: '/admin/players/new',
-        builder: (c, s) => const AdminPlayerFormScreen(playerType: 'pro'),
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return AdminPlayerFormScreen(
+            playerType: 'pro',
+            prefillSportId: extra?['sportId'] as String?,
+            prefillCompetitionId: extra?['competitionId'] as String?,
+          );
+        },
       ),
       GoRoute(
         path: '/admin/players/edit/:id',
@@ -209,15 +251,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-  path: '/sport/:slug/amateurs',
-  builder: (c, s) {
-    final extra = s.extra as Map<String, dynamic>?;
-    return PublicAmateursListScreen(
-      sportId: extra?['sportId'] as String? ?? '',
-      sportName: extra?['sportName'] as String?,
-    );
-  },
-),
+        path: '/sport/:slug/amateurs',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return PublicAmateursListScreen(
+            sportId: extra?['sportId'] as String? ?? '',
+            sportName: extra?['sportName'] as String?,
+          );
+        },
+      ),
+      // ---- Académies (filtre par sport) ----
+      GoRoute(
+        path: '/sport/:slug/academies',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return PublicAcademiesListScreen(
+            sportId: extra?['sportId'] as String? ?? '',
+            sportName: extra?['sportName'] as String?,
+          );
+        },
+      ),
       // ---- Amateurs (filtre par sport) ----
       GoRoute(
         path: '/admin/amateurs',
@@ -225,12 +278,41 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/admin/amateurs/new',
-        builder: (c, s) => const AdminPlayerFormScreen(playerType: 'amateur'),
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return AdminPlayerFormScreen(
+            playerType: 'amateur',
+            prefillSportId: extra?['sportId'] as String?,
+          );
+        },
       ),
       GoRoute(
         path: '/admin/amateurs/edit/:id',
         builder: (c, s) => AdminPlayerFormScreen(
           playerType: 'amateur',
+          existingPlayer: s.extra as PlayerModel,
+        ),
+      ),
+
+      // ---- Académies (filtre par sport) ----
+      GoRoute(
+        path: '/admin/academies',
+        builder: (c, s) => const AdminAcademiePlayersListScreen(),
+      ),
+      GoRoute(
+        path: '/admin/academies/new',
+        builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return AdminPlayerFormScreen(
+            playerType: 'academie',
+            prefillSportId: extra?['sportId'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/admin/academies/edit/:id',
+        builder: (c, s) => AdminPlayerFormScreen(
+          playerType: 'academie',
           existingPlayer: s.extra as PlayerModel,
         ),
       ),
@@ -262,6 +344,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s) => AdminEditSubAdminScreen(subAdmin: s.extra as UserProfileModel),
       ),
       GoRoute(path: '/admin/audit-log', builder: (c, s) => const AdminAuditLogScreen()),
+
+
     ],
   );
 });

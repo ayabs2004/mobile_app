@@ -5,12 +5,10 @@ import '../../../../core/utils/error_utils.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../sports/data/models/sport_model.dart';
 import '../../../sports/data/models/competition_model.dart';
+import '../../../sports/presentation/providers/sports_provider.dart';
 import '../providers/admin_content_providers.dart';
-
-/// Compétitions d'UN sport. L'écran s'arrête ici : plus de navigation
-/// vers une liste de joueurs (la gestion des joueurs se fait désormais
-/// depuis un écran séparé "Joueurs", accessible depuis la sidebar,
-/// avec un filtre par sport).
+import 'package:go_router/go_router.dart';
+/// Compétitions et Sections d'UN sport.
 class AdminCompetitionsListScreen extends ConsumerWidget {
   final SportModel sport;
   const AdminCompetitionsListScreen({super.key, required this.sport});
@@ -120,20 +118,108 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _toggleSection(BuildContext context, WidgetRef ref, String sectionKey, bool value) async {
+    try {
+      await ref.read(adminSportsRepositoryProvider).updateSport(sport.id, {
+        sectionKey: value,
+      });
+      ref.invalidate(adminSportsListProvider);
+      ref.invalidate(sportsListProvider);
+      if (context.mounted) {
+        SnackBarUtils.showSuccess(context, value ? 'Section activée' : 'Section désactivée');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        SnackBarUtils.showError(context, ErrorUtils.friendlyMessage(e));
+      }
+    }
+  }
+
+  void _showAddMenu(BuildContext context, WidgetRef ref, SportModel currentSport) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Ajouter une section', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events, color: AppTheme.accentGreen),
+              title: const Text('Compétition Pro (Ligue 1, etc.)', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _showCompetitionDialog(context, ref);
+              },
+            ),
+            if (!currentSport.hasCoaches)
+              ListTile(
+                leading: const Icon(Icons.sports, color: AppTheme.accentGreen),
+                title: const Text('Activer la section Coachs', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSection(context, ref, 'has_coaches', true);
+                },
+              ),
+            if (!currentSport.hasAmateurs)
+              ListTile(
+                leading: const Icon(Icons.groups, color: AppTheme.accentGreen),
+                title: const Text('Activer la section Amateurs', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSection(context, ref, 'has_amateurs', true);
+                },
+              ),
+            if (!currentSport.hasAcademies)
+              ListTile(
+                leading: const Icon(Icons.school, color: AppTheme.accentGreen),
+                title: const Text('Activer la section Académies', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSection(context, ref, 'has_academies', true);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _competitionOrder(CompetitionModel competition) {
+    final match = RegExp(r'ligue\s*([0-9]+)', caseSensitive: false)
+        .firstMatch(competition.name);
+    return match != null ? int.parse(match.group(1)!) : 9999;
+  }
+
+  int _competitionComparator(CompetitionModel a, CompetitionModel b) {
+    final orderA = _competitionOrder(a);
+    final orderB = _competitionOrder(b);
+    if (orderA != orderB) return orderA.compareTo(orderB);
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final competitionsAsync =
-        ref.watch(adminCompetitionsBySportProvider(sport.id));
+    final sportsAsync = ref.watch(adminSportsListProvider);
+    final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == sport.id) ?? sport;
+
+    final competitionsAsync = ref.watch(adminCompetitionsBySportProvider(sport.id));
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Text('${sport.iconEmoji ?? ""} ${sport.name}'),
+        title: Text('${currentSport.iconEmoji ?? ""} ${currentSport.name}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'Nouvelle compétition',
-            onPressed: () => _showCompetitionDialog(context, ref),
+            tooltip: 'Nouvelle section',
+            onPressed: () => _showAddMenu(context, ref, currentSport),
           ),
         ],
       ),
@@ -143,52 +229,144 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
         error: (e, st) => Center(
             child: Text(ErrorUtils.friendlyMessage(e),
                 style: const TextStyle(color: AppTheme.textSecondary))),
-        data: (competitions) => ListView.separated(
-          padding: const EdgeInsets.all(20),
-          itemCount: competitions.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final competition = competitions[index];
-            return Material(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => _showCompetitionDialog(context, ref,
-                    existing: competition),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+        data: (competitions) {
+          final orderedCompetitions = [...competitions]..sort(_competitionComparator);
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              // Compétitions
+              for (final competition in orderedCompetitions)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Material(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => context.push(
+                        '/admin/sports/${sport.id}/competitions/${competition.id}/players',
+                        extra: {'competition': competition, 'sport': sport},
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
                           children: [
-                            Text(competition.name,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600)),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(competition.name,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600)),
+                                  const Text('Voir les joueurs',
+                                      style: TextStyle(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  color: AppTheme.textSecondary),
+                              onPressed: () => _showCompetitionDialog(context, ref,
+                                  existing: competition),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.redAccent),
+                              onPressed: () =>
+                                  _confirmAndDelete(context, ref, competition),
+                            ),
+                            const Icon(Icons.chevron_right,
+                                color: AppTheme.textSecondary),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            color: AppTheme.textSecondary),
-                        onPressed: () => _showCompetitionDialog(context, ref,
-                            existing: competition),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: Colors.redAccent),
-                        onPressed: () =>
-                            _confirmAndDelete(context, ref, competition),
-                      ),
+                    ),
+                  ),
+                ),
+              if (currentSport.hasAmateurs)
+                _buildSpecialSection(
+                  context,
+                  ref,
+                  'Amateurs',
+                  Icons.groups,
+                  () => _toggleSection(context, ref, 'has_amateurs', false),
+                  onTap: () => context.push(
+                    '/admin/sports/${sport.id}/amateurs',
+                    extra: sport,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSpecialSection(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+    IconData icon,
+    VoidCallback onDelete, {
+    VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(icon, color: AppTheme.accentGreen),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600)),
+                      if (onTap != null)
+                        const Text('Voir les joueurs',
+                            style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12)),
                     ],
                   ),
                 ),
-              ),
-            );
-          },
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.redAccent),
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: AppTheme.surfaceColor,
+                        title: Text('Désactiver la section $title ?', style: const TextStyle(color: Colors.white)),
+                        content: const Text('Cette section ne sera plus affichée sur l\'accueil.', style: TextStyle(color: AppTheme.textSecondary)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Désactiver', style: TextStyle(color: Colors.redAccent))),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) onDelete();
+                  },
+                ),
+                if (onTap != null)
+                  const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+              ],
+            ),
+          ),
         ),
       ),
     );

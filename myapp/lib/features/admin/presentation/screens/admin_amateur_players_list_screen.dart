@@ -10,7 +10,14 @@ import '../providers/admin_content_providers.dart';
 
 /// Joueurs AMATEURS : liste + recherche + filtre sport + CRUD.
 class AdminAmateurPlayersListScreen extends ConsumerStatefulWidget {
-  const AdminAmateurPlayersListScreen({super.key});
+  final String? sportId;
+  final String? sportName;
+
+  const AdminAmateurPlayersListScreen({
+    super.key,
+    this.sportId,
+    this.sportName,
+  });
 
   @override
   ConsumerState<AdminAmateurPlayersListScreen> createState() =>
@@ -22,6 +29,12 @@ class _AdminAmateurPlayersListScreenState
   final _searchController = TextEditingController();
   String _search = '';
   String? _sportId;
+
+  @override
+  void initState() {
+    super.initState();
+    _sportId = widget.sportId;
+  }
 
   @override
   void dispose() {
@@ -80,11 +93,25 @@ class _AdminAmateurPlayersListScreenState
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(title: const Text('Joueurs amateurs')),
+      appBar: AppBar(
+        title: Text(
+          widget.sportName != null
+              ? 'Amateurs — ${widget.sportName}'
+              : 'Amateurs',
+        ),
+      actions: [
+    IconButton(
+      icon: const Icon(Icons.home_outlined),
+      tooltip: 'Accueil admin',
+      onPressed: () => context.go('/admin'),
+    ),
+  ],),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.accentGreen,
-        tooltip: 'Ajouter un joueur amateur',
-        onPressed: () => context.push('/admin/amateurs/new'),
+        tooltip: 'Ajouter un amateur',
+        onPressed: () => context.push('/admin/amateurs/new', extra: {
+          'sportId': _sportId,
+        }),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(

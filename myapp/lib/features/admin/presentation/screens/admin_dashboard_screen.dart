@@ -24,11 +24,11 @@ class AdminDashboardScreen extends ConsumerWidget {
             color: AppTheme.surfaceColor,
             onSelected: (route) => context.push(route),
            itemBuilder: (context) => [
-  const PopupMenuItem(value: '/admin/sports', child: Text('Sports & compétitions', style: TextStyle(color: Colors.white))),
-  const PopupMenuItem(value: '/admin/players', child: Text('Joueurs', style: TextStyle(color: Colors.white))),
-  const PopupMenuItem(value: '/admin/amateurs', child: Text('Amateurs', style: TextStyle(color: Colors.white))),
+  const PopupMenuItem(value: '/admin/sports', child: Text('Sports & Joueurs', style: TextStyle(color: Colors.white))),
+  const PopupMenuItem(value: '/admin/academies', child: Text('Académies', style: TextStyle(color: Colors.white))),
   const PopupMenuItem(value: '/admin/coaches', child: Text('Coachs', style: TextStyle(color: Colors.white))),
   const PopupMenuItem(value: '/admin/users', child: Text('Utilisateurs', style: TextStyle(color: Colors.white))),
+  
   if (isSuperAdmin) ...[
     const PopupMenuDivider(),
     const PopupMenuItem(value: '/admin/sub-admins', child: Text('Sous-admins', style: TextStyle(color: Colors.white))),
@@ -76,34 +76,41 @@ class AdminDashboardScreen extends ConsumerWidget {
                     icon: Icons.sports_soccer,
                   ),
                   _StatCard(
+                    label: 'Coachs',
+                    value: '${stats['total_coaches'] ?? 0}',
+                    icon: Icons.assignment_ind_outlined,
+                  ),
+                  _StatCard(
                     label: 'Sports',
                     value: '${stats['total_competitions']}',
                     icon: Icons.emoji_events_outlined,
                   ),
-                  _StatCard(
-                    label: 'Visites (7j)',
-                    value: '${stats['unique_visitors_week']}',
-                    icon: Icons.trending_up,
-                  ),
                 ],
               ),
               const SizedBox(height: 24),
+              _StatCard(
+                label: 'Visites (7j)',
+                value: '${stats['unique_visitors_week']}',
+                icon: Icons.trending_up,
+                fullWidth: true,
+              ),
+              const SizedBox(height: 10),
               _StatCard(
                 label: 'Visiteurs uniques aujourd\'hui',
                 value: '${stats['unique_visitors_today']}',
                 icon: Icons.today_outlined,
                 fullWidth: true,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _StatCard(
                 label: 'Ouvertures d\'app aujourd\'hui',
                 value: '${stats['visits_today']}',
                 icon: Icons.open_in_new,
                 fullWidth: true,
               ),
-              const SizedBox(height: 24),
+
               const Text(
-                'Joueurs les plus consultés',
+                'Profils les plus consultés',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -112,6 +119,7 @@ class AdminDashboardScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               ...(stats['top_players'] as List).map((p) {
+                final isCoach = p['entity_type'] == 'coach';
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
@@ -121,10 +129,28 @@ class AdminDashboardScreen extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
+                      Icon(
+                        isCoach ? Icons.assignment_ind_outlined : Icons.sports_soccer,
+                        color: AppTheme.accentGreen,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          p['full_name'],
-                          style: const TextStyle(color: Colors.white),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p['full_name'],
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            Text(
+                              isCoach ? 'Coach' : 'Joueur',
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Text(
@@ -151,12 +177,14 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final bool fullWidth;
+  final Widget? trailing;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
     this.fullWidth = false,
+    this.trailing,
   });
 
   @override
@@ -177,14 +205,16 @@ class _StatCard extends StatelessWidget {
                   child: Text(label,
                       style: const TextStyle(color: AppTheme.textSecondary)),
                 ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                if (value.isNotEmpty)
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
+                if (trailing != null) trailing!,
               ],
             )
           : Column(

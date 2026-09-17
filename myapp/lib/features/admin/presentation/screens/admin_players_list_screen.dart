@@ -8,10 +8,20 @@ import '../../../players/data/models/player_model.dart';
 import '../providers/admin_players_provider.dart';
 import '../providers/admin_content_providers.dart';
 
-/// Liste globale des joueurs PRO (toutes compétitions), accessible depuis
-/// la sidebar admin sous "Joueurs". Filtre par sport + recherche.
+/// Liste des joueurs PRO, accessible depuis la sidebar ou via Sports > Compétition.
 class AdminPlayersListScreen extends ConsumerStatefulWidget {
-  const AdminPlayersListScreen({super.key});
+  final String? sportId;
+  final String? competitionId;
+  final String? competitionName;
+  final String? sportName;
+
+  const AdminPlayersListScreen({
+    super.key,
+    this.sportId,
+    this.competitionId,
+    this.competitionName,
+    this.sportName,
+  });
 
   @override
   ConsumerState<AdminPlayersListScreen> createState() =>
@@ -22,6 +32,14 @@ class _AdminPlayersListScreenState extends ConsumerState<AdminPlayersListScreen>
   final _searchController = TextEditingController();
   String _search = '';
   String? _sportId;
+  String? _competitionId;
+
+  @override
+  void initState() {
+    super.initState();
+    _sportId = widget.sportId;
+    _competitionId = widget.competitionId;
+  }
 
   @override
   void dispose() {
@@ -75,16 +93,38 @@ class _AdminPlayersListScreenState extends ConsumerState<AdminPlayersListScreen>
     final sportsAsync = ref.watch(adminSportsListProvider);
     final playersAsync = ref.watch(
       adminAllProPlayersProvider(
-          AdminPlayersFilter(sportId: _sportId, search: _search)),
+        AdminPlayersFilter(
+          sportId: _sportId,
+          search: _search,
+          competitionId: _competitionId,
+        ),
+      ),
     );
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(title: const Text('Joueurs (pro)')),
+      appBar: AppBar(
+        title: Text(
+          widget.competitionName != null
+              ? 'Joueurs — ${widget.competitionName}'
+              : widget.sportName != null
+                  ? 'Joueurs — ${widget.sportName}'
+                  : 'Joueurs (pro)',
+        ), actions: [
+    IconButton(
+      icon: const Icon(Icons.home_outlined),
+      tooltip: 'Accueil admin',
+      onPressed: () => context.go('/admin'),
+    ),
+  ],
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.accentGreen,
         tooltip: 'Ajouter un joueur',
-        onPressed: () => context.push('/admin/players/new'),
+        onPressed: () => context.push('/admin/players/new', extra: {
+          'sportId': _sportId,
+          'competitionId': _competitionId,
+        }),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Column(

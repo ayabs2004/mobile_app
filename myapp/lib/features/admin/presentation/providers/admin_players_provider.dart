@@ -9,17 +9,19 @@ final adminPlayersRepositoryProvider =
 /// + texte de recherche courant (vide = pas de filtre).
 class AdminPlayersFilter {
   final String? sportId;
+  final String? competitionId;
   final String search;
-  const AdminPlayersFilter({this.sportId, this.search = ''});
+  const AdminPlayersFilter({this.sportId, this.competitionId, this.search = ''});
 
   @override
   bool operator ==(Object other) =>
       other is AdminPlayersFilter &&
       other.sportId == sportId &&
+      other.competitionId == competitionId &&
       other.search == search;
 
   @override
-  int get hashCode => Object.hash(sportId, search);
+  int get hashCode => Object.hash(sportId, competitionId, search);
 }
 
 /// Liste des joueurs PRO, filtrée par sport (via compétition) + recherche.
@@ -27,7 +29,7 @@ final adminAllProPlayersProvider =
     FutureProvider.family<List<PlayerModel>, AdminPlayersFilter>((ref, f) {
   return ref
       .read(adminPlayersRepositoryProvider)
-      .getPlayersBySport(f.sportId, search: f.search);
+      .getPlayersBySport(f.sportId, competitionId: f.competitionId, search: f.search);
 });
 
 /// Liste des joueurs AMATEURS, filtrée par sport + recherche.
@@ -38,6 +40,14 @@ final adminAmateurPlayersProvider =
       .getAmateurPlayers(search: f.search, sportId: f.sportId);
 });
 
+/// Liste des joueurs ACADÉMIE, filtrée par sport + recherche.
+final adminAcademiePlayersProvider =
+    FutureProvider.family<List<PlayerModel>, AdminPlayersFilter>((ref, f) {
+  return ref
+      .read(adminPlayersRepositoryProvider)
+      .getAcademiePlayers(search: f.search, sportId: f.sportId);
+});
+
 final adminCompetitionsOptionsProvider =
     FutureProvider<List<CompetitionOption>>((ref) async {
   return ref.read(adminPlayersRepositoryProvider).getAllCompetitions();
@@ -46,7 +56,3 @@ final adminCompetitionsOptionsProvider =
 // adminAcademiesOptionsProvider -> SUPPRIMÉ (table academies supprimée)
 // adminCoachesOptionsProvider -> SUPPRIMÉ (plus de FK player.coach_id,
 // le formulaire joueur ne référence plus les coachs)
-// Dummy provider to satisfy old UI code
-final adminAcademiePlayersProvider = FutureProvider.family<List<PlayerModel>, dynamic>((ref, arg) async {
-  return [];
-});
