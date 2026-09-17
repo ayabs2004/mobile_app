@@ -1,4 +1,5 @@
 class PlayerModel {
+  final String? niveau = null;
   final String id;
   final String? competitionId; // pro uniquement
   final String? sportId; // amateur uniquement

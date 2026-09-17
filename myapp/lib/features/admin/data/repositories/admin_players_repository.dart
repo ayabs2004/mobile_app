@@ -15,6 +15,7 @@ class CompetitionOption {
 }
 
 class AdminPlayersRepository {
+  Future<void> savePlayerStats({required String playerId, required int matchesPlayed, required int goals, required int assists, required int yellowCards, required int redCards, required int minutesPlayed}) async {}
   /// Joueurs PRO, filtrés optionnellement par sport (via la compétition).
   Future<List<PlayerModel>> getPlayersBySport(
     String? sportId, {

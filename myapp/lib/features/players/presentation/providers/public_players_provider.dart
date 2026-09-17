@@ -27,3 +27,7 @@ final publicPlayerDetailProvider =
     FutureProvider.family<PlayerWithDetails, String>((ref, playerId) {
   return ref.read(publicPlayersRepositoryProvider).getPlayerById(playerId);
 });
+// Dummy provider to satisfy old UI code
+final publicAcademiePlayersBySportProvider = FutureProvider.family<List<PlayerModel>, String>((ref, sportId) async {
+  return [];
+});

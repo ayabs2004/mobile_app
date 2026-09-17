@@ -34,6 +34,7 @@ class CoachTeamExperience {
 }
 
 class CoachModel {
+  final String? coverUrl = null;
   final String id;
   final String sportId;
   final String fullName;

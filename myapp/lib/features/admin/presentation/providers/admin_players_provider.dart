@@ -46,3 +46,7 @@ final adminCompetitionsOptionsProvider =
 // adminAcademiesOptionsProvider -> SUPPRIMÉ (table academies supprimée)
 // adminCoachesOptionsProvider -> SUPPRIMÉ (plus de FK player.coach_id,
 // le formulaire joueur ne référence plus les coachs)
+// Dummy provider to satisfy old UI code
+final adminAcademiePlayersProvider = FutureProvider<List<PlayerModel>>((ref) async {
+  return [];
+});
