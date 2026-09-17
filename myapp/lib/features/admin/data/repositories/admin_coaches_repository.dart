@@ -32,6 +32,7 @@ class AdminCoachesRepository {
   Future<void> deleteCoach(String id) async {
     await SupabaseConfig.client.from('coaches').delete().eq('id', id);
   }
+
   Future<List<PlayerMediaItem>> getCoachMedia(String coachId) async {
     final res = await SupabaseConfig.client
         .from('media')
@@ -51,8 +52,7 @@ class AdminCoachesRepository {
     }).toList();
   }
 
-  /// Cr+¬e un coach ET ses m+¬dias en une seule transaction :
-  /// un seul log d'audit "cr+¬ation" est g+¬n+¬r+¬, jamais de log m+¬dia.
+  /// Cree un coach ET ses medias en une seule transaction.
   Future<CoachModel> createCoachWithMedia(
     CoachModel coach,
     List<PlayerMediaItem> mediaItems,
@@ -67,9 +67,7 @@ class AdminCoachesRepository {
     return CoachModel.fromJson(res as Map<String, dynamic>);
   }
 
-  /// Met +á jour un coach ET diffe ses m+¬dias en une seule transaction :
-  /// un seul log d'audit "modification" consolid+¬ (colonnes + m+¬dias),
-  /// jamais de log m+¬dia s+¬par+¬.
+  /// Met a jour un coach ET diffe ses medias en une seule transaction.
   Future<CoachModel> updateCoachWithMedia(
     String coachId,
     CoachModel coach,
@@ -86,5 +84,9 @@ class AdminCoachesRepository {
     return CoachModel.fromJson(res as Map<String, dynamic>);
   }
 
-  /// Supprime un coach et ses m+¬dias en cascade : un seul log "suppression".
+  /// Supprime un coach et ses medias en cascade.
+  Future<void> deleteCoachWithMedia(String id) async {
+    await SupabaseConfig.client
+        .rpc('admin_delete_coach_cascade', params: {'p_coach_id': id});
+  }
 }
