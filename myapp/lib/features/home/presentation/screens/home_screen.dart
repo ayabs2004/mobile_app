@@ -896,7 +896,7 @@ class _FantasyBanner extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: hasOpenRound ? 0.18 : 0.06),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.sports_soccer, color: Colors.white, size: 20),
@@ -917,13 +917,11 @@ class _FantasyBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      hasOpenRound
-                          ? round!.name
-                          : 'Aucun round actif pour le moment',
+                      sportName != null ? 'Fantasy $sportName' : 'Compose ton équipe !',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: hasOpenRound ? 0.9 : 0.6),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -933,45 +931,43 @@ class _FantasyBanner extends StatelessWidget {
               ),
             ],
           ),
-          if (hasOpenRound) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _FantasyActionChip(
-                    label: 'Composer',
-                    icon: Icons.add_task,
-                    onTap: () => context.push('/fantasy', extra: {
-                      'sportId': sportId,
-                      'sportName': sportName,
-                    }),
-                  ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _FantasyActionChip(
+                  label: 'Composer',
+                  icon: Icons.add_task,
+                  onTap: () => context.push('/fantasy', extra: {
+                    'sportId': sportId,
+                    'sportName': sportName,
+                  }),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _FantasyActionChip(
-                    label: 'Mon équipe',
-                    icon: Icons.groups,
-                    onTap: () => context.push('/fantasy/team', extra: {
-                      'sportId': sportId,
-                      'sportName': sportName,
-                    }),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _FantasyActionChip(
+                  label: 'Mon équipe',
+                  icon: Icons.groups,
+                  onTap: () => context.push('/fantasy/team', extra: {
+                    'sportId': sportId,
+                    'sportName': sportName,
+                  }),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _FantasyActionChip(
-                    label: 'Classement',
-                    icon: Icons.leaderboard,
-                    onTap: () => context.push('/fantasy/leaderboard', extra: {
-                      'sportId': sportId,
-                      'sportName': sportName,
-                    }),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _FantasyActionChip(
+                  label: 'Classement',
+                  icon: Icons.leaderboard,
+                  onTap: () => context.push('/fantasy/leaderboard', extra: {
+                    'sportId': sportId,
+                    'sportName': sportName,
+                  }),
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ],
       ),
     );
