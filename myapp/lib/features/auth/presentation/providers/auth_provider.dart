@@ -135,6 +135,29 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  Future<void> updateProfile({required String fullName, required String phone}) async {
+    state = const AsyncValue.loading();
+    try {
+      final currentMetadata =
+          SupabaseConfig.client.auth.currentUser?.userMetadata ?? {};
+      await SupabaseConfig.client.auth.updateUser(
+        UserAttributes(
+          data: {
+            ...currentMetadata,
+            'full_name': fullName,
+            'phone': phone,
+          },
+        ),
+      );
+      // Wait for auth state change to reflect in currentUserProvider
+      await Future.delayed(const Duration(milliseconds: 500));
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
   /// Définit le mot de passe d'un compte fraîchement invité (admin créé via
   /// inviteUserByEmail) et retire le flag `must_set_password` de ses
   /// métadonnées pour ne plus être redirigé vers cet écran ensuite.

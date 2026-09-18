@@ -318,7 +318,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             sportId: null,
                             sportName: null,
                           ),
-                          error: (_, __) => const SizedBox.shrink(),
+                          error: (e, __) => Container(
+                            padding: const EdgeInsets.all(16),
+                            color: Colors.red.withValues(alpha: 0.2),
+                            child: Text(
+                              'Erreur DB Fantasy (la table fantasy_rounds a dû être supprimée) : $e',
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
                           data: (round) => _FantasyBanner(
                             round: round,
                             loading: false,

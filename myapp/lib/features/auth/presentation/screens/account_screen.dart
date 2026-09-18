@@ -38,6 +38,40 @@ class AccountScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _showEditDialog(BuildContext context, WidgetRef ref, String initialName, String initialPhone) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final phoneCtrl = TextEditingController(text: initialPhone);
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text('Modifier mon profil', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom', labelStyle: TextStyle(color: Colors.white54))),
+            TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Téléphone', labelStyle: TextStyle(color: Colors.white54))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () async {
+              try {
+                await ref.read(authControllerProvider.notifier).updateProfile(fullName: nameCtrl.text, phone: phoneCtrl.text);
+                if (ctx.mounted) Navigator.pop(ctx);
+                SnackbarUtils.showSuccess(context, 'Profil mis à jour');
+              } catch (e) {
+                SnackbarUtils.showError(context, 'Erreur');
+              }
+            },
+            child: const Text('Enregistrer', style: TextStyle(color: AppTheme.accentGreen)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
@@ -46,7 +80,7 @@ class AccountScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(title: const Text('Mon compte')),
+      appBar: AppBar(title: const Text('Mon compte'), actions: [ IconButton(icon: const Icon(Icons.edit, color: Colors.white), onPressed: () => _showEditDialog(context, ref, fullName, phone ?? ''),) ]),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -86,6 +120,40 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
   const _InfoTile({required this.icon, required this.label, required this.value});
+
+  Future<void> _showEditDialog(BuildContext context, WidgetRef ref, String initialName, String initialPhone) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final phoneCtrl = TextEditingController(text: initialPhone);
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text('Modifier mon profil', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Nom', labelStyle: TextStyle(color: Colors.white54))),
+            TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Téléphone', labelStyle: TextStyle(color: Colors.white54))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () async {
+              try {
+                await ref.read(authControllerProvider.notifier).updateProfile(fullName: nameCtrl.text, phone: phoneCtrl.text);
+                if (ctx.mounted) Navigator.pop(ctx);
+                SnackbarUtils.showSuccess(context, 'Profil mis à jour');
+              } catch (e) {
+                SnackbarUtils.showError(context, 'Erreur');
+              }
+            },
+            child: const Text('Enregistrer', style: TextStyle(color: AppTheme.accentGreen)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
