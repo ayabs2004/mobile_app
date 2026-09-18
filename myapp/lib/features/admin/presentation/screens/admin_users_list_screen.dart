@@ -57,10 +57,14 @@ class _AdminUsersListScreenState extends ConsumerState<AdminUsersListScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               scrollDirection: Axis.horizontal,
-              itemCount: _roleFilters.length,
+              itemCount: _roleFilters
+                  .where((f) => isSuperAdmin || f.role != 'super_admin')
+                  .length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final filter = _roleFilters[index];
+                final filter = _roleFilters
+                    .where((f) => isSuperAdmin || f.role != 'super_admin')
+                    .toList()[index];
                 final selected = filter.role == _selectedRole;
                 return InkWell(
                   onTap: () => setState(() => _selectedRole = filter.role),
@@ -97,9 +101,14 @@ class _AdminUsersListScreenState extends ConsumerState<AdminUsersListScreen> {
                   child: Text(ErrorUtils.friendlyMessage(e),
                       style: const TextStyle(color: AppTheme.textSecondary))),
               data: (allUsers) {
-                final users = _selectedRole == null
+                // Les sous-admins ne peuvent pas voir les super-admins
+                final visibleUsers = isSuperAdmin
                     ? allUsers
-                    : allUsers.where((u) => u.role == _selectedRole).toList();
+                    : allUsers.where((u) => u.role != 'super_admin').toList();
+
+                final users = _selectedRole == null
+                    ? visibleUsers
+                    : visibleUsers.where((u) => u.role == _selectedRole).toList();
 
                 if (users.isEmpty) {
                   return const Center(
