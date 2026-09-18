@@ -89,4 +89,15 @@ class PublicPlayersRepository {
       .order('full_name');
   return (res as List).map((j) => PlayerModel.fromJson(j)).toList();
 }
+
+  Future<List<PlayerModel>> getAcademiePlayersBySport(String sportId) async {
+  final res = await SupabaseConfig.client
+      .from('players')
+      .select()
+      .eq('sport_id', sportId)
+      .eq('type', 'academie')
+      .eq('is_active', true)
+      .order('full_name');
+  return (res as List).map((j) => PlayerModel.fromJson(j)).toList();
+}
 }
