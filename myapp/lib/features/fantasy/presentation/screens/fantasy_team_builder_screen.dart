@@ -154,7 +154,14 @@ class _FantasyTeamBuilderScreenState
 
   bool _matchesFilter(FantasyPricedPlayer p) {
     if (_positionFilter == 'Tous') return true;
-    return (p.player.position ?? '').toUpperCase().startsWith(_positionFilter);
+    final line = formationLineFor(p.player.position);
+    return switch (_positionFilter) {
+      'GK'  => line == FormationLine.keeper,
+      'DEF' => line == FormationLine.defense,
+      'MIL' => line == FormationLine.midfield,
+      'ATT' => line == FormationLine.attack,
+      _     => true,
+    };
   }
 
   bool _matchesSearch(FantasyPricedPlayer p) {
