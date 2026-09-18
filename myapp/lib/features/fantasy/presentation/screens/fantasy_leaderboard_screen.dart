@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/error_utils.dart';
-import '../../data/models/fantasy_round_model.dart';
-import '../../data/models/fantasy_team_model.dart';
 import '../providers/fantasy_provider.dart';
 
 class FantasyLeaderboardScreen extends ConsumerStatefulWidget {
@@ -66,198 +64,43 @@ class _FantasyLeaderboardScreenState
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
           tabs: const [
-            Tab(text: 'Round en cours'),
-            Tab(text: 'Général'),
+            Tab(text: 'Classement'),
+            Tab(text: 'Mes essais'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _RoundLeaderboardTab(sportId: sport),
-          _GeneralLeaderboardTab(sportId: sport),
+          _LiveLeaderboardTab(sportId: sport),
+          _MyScoreHistoryTab(sportId: sport),
         ],
       ),
     );
   }
 }
 
-/// Classement du round actuellement ouvert pour ce sport.
-class _RoundLeaderboardTab extends ConsumerWidget {
+/// Classement live du sport : recalculé à chaque lecture (plus de round),
+/// donc reflète toujours l'état actuel des équipes et des stats.
+class _LiveLeaderboardTab extends ConsumerWidget {
   final String sportId;
 
-  const _RoundLeaderboardTab({required this.sportId});
+  const _LiveLeaderboardTab({required this.sportId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roundAsync = ref.watch(currentFantasyRoundProvider(sportId));
-
-    return roundAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text(
-          ErrorUtils.friendlyMessage(e, context: 'le chargement du round'),
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-      data: (round) {
-        if (round == null) {
-          return const Center(
-            child: Text(
-              'Aucun round fantasy actif pour le moment.',
-              style: TextStyle(color: Colors.white70),
-            ),
-          );
-        }
-
-        final leaderboardAsync = ref.watch(fantasyLeaderboardProvider(round.id));
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(fantasyLeaderboardProvider(round.id));
-            await ref.read(fantasyLeaderboardProvider(round.id).future);
-          },
-          child: leaderboardAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Text(
-                ErrorUtils.friendlyMessage(e, context: 'le chargement du classement'),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            data: (entries) {
-              if (entries.isEmpty) {
-                return ListView(
-                  children: [
-                    const SizedBox(height: 12),
-                    _RoundBanner(round: round),
-                    const SizedBox(height: 60),
-                    const Center(
-                      child: Text(
-                        'Aucun classement disponible pour l\'instant.',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: entries.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _RoundBanner(round: round);
-                  }
-                  final entry = entries[index - 1];
-                  final rank = index;
-                  final isTopThree = rank <= 3;
-
-                  return Card(
-                    color: AppTheme.surfaceColor,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            isTopThree ? _rankColor(rank) : AppTheme.backgroundColor,
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            color: isTopThree ? Colors.black : Colors.white70,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        entry.userName,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      trailing: Text(
-                        '${entry.totalPoints} pts',
-                        style: const TextStyle(
-                          color: AppTheme.accentGreen,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Bandeau rappelant le round affiché et son statut (ouvert/clos).
-class _RoundBanner extends StatelessWidget {
-  final FantasyRoundModel round;
-
-  const _RoundBanner({required this.round});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isOpen = round.isOpen;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              round.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isOpen
-                  ? AppTheme.accentGreen.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              isOpen ? 'En cours' : 'Clos',
-              style: TextStyle(
-                color: isOpen ? AppTheme.accentGreen : Colors.white70,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Classement général : cumul des points sur tous les rounds du sport.
-class _GeneralLeaderboardTab extends ConsumerWidget {
-  final String sportId;
-
-  const _GeneralLeaderboardTab({required this.sportId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final leaderboardAsync = ref.watch(fantasyGeneralLeaderboardProvider(sportId));
+    final leaderboardAsync = ref.watch(fantasyLeaderboardProvider(sportId));
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(fantasyGeneralLeaderboardProvider(sportId));
-        await ref.read(fantasyGeneralLeaderboardProvider(sportId).future);
+        ref.invalidate(fantasyLeaderboardProvider(sportId));
+        await ref.read(fantasyLeaderboardProvider(sportId).future);
       },
       child: leaderboardAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Text(
-            ErrorUtils.friendlyMessage(e, context: 'le chargement du classement général'),
+            ErrorUtils.friendlyMessage(e, context: 'le chargement du classement'),
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -268,7 +111,7 @@ class _GeneralLeaderboardTab extends ConsumerWidget {
                 SizedBox(height: 80),
                 Center(
                   child: Text(
-                    'Aucun classement général disponible pour l\'instant.',
+                    'Aucun classement disponible pour l\'instant.',
                     style: TextStyle(color: Colors.white70),
                   ),
                 ),
@@ -280,7 +123,7 @@ class _GeneralLeaderboardTab extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             itemCount: entries.length,
             itemBuilder: (context, index) {
-              final FantasyGeneralLeaderboardEntry entry = entries[index];
+              final entry = entries[index];
               final rank = index + 1;
               final isTopThree = rank <= 3;
 
@@ -303,10 +146,6 @@ class _GeneralLeaderboardTab extends ConsumerWidget {
                     entry.userName,
                     style: const TextStyle(color: Colors.white),
                   ),
-                  subtitle: Text(
-                    '${entry.roundsPlayed} round${entry.roundsPlayed > 1 ? 's' : ''} joué${entry.roundsPlayed > 1 ? 's' : ''}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
                   trailing: Text(
                     '${entry.totalPoints} pts',
                     style: const TextStyle(
@@ -321,6 +160,141 @@ class _GeneralLeaderboardTab extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Historique perso : score + rang capturés à chaque sauvegarde d'équipe.
+/// Montre comment le classement de l'utilisateur a varié d'un essai à
+/// l'autre, sans notion de round.
+class _MyScoreHistoryTab extends ConsumerWidget {
+  final String sportId;
+
+  const _MyScoreHistoryTab({required this.sportId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(fantasyScoreHistoryProvider(sportId));
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(fantasyScoreHistoryProvider(sportId));
+        await ref.read(fantasyScoreHistoryProvider(sportId).future);
+      },
+      child: historyAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text(
+            ErrorUtils.friendlyMessage(e, context: "le chargement de l'historique"),
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+        data: (snapshots) {
+          if (snapshots.isEmpty) {
+            return ListView(
+              children: const [
+                SizedBox(height: 80),
+                Center(
+                  child: Text(
+                    "Compose et enregistre une équipe pour voir tes essais ici.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Le plus récent en premier.
+          final reversed = snapshots.reversed.toList();
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: reversed.length,
+            itemBuilder: (context, index) {
+              final snap = reversed[index];
+              final previous =
+                  index + 1 < reversed.length ? reversed[index + 1] : null;
+              final delta = previous == null ? null : previous.rank - snap.rank;
+
+              return Card(
+                color: AppTheme.surfaceColor,
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppTheme.backgroundColor,
+                    child: Text(
+                      '#${snap.rank}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    '${snap.totalPoints} pts',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    _formatDate(snap.createdAt),
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  trailing: delta == null
+                      ? null
+                      : _RankDeltaBadge(delta: delta),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    final local = d.toLocal();
+    final dd = local.day.toString().padLeft(2, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$dd/$mm à $hh:$min';
+  }
+}
+
+/// Petit badge indiquant si le rang s'est amélioré (▲), dégradé (▼) ou
+/// n'a pas bougé (–) par rapport à l'essai précédent.
+class _RankDeltaBadge extends StatelessWidget {
+  final int delta;
+
+  const _RankDeltaBadge({required this.delta});
+
+  @override
+  Widget build(BuildContext context) {
+    if (delta == 0) {
+      return const Text('–', style: TextStyle(color: Colors.white54));
+    }
+    final improved = delta > 0;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          improved ? Icons.arrow_upward : Icons.arrow_downward,
+          size: 14,
+          color: improved ? AppTheme.accentGreen : Colors.redAccent,
+        ),
+        Text(
+          '${delta.abs()}',
+          style: TextStyle(
+            color: improved ? AppTheme.accentGreen : Colors.redAccent,
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
+          ),
+        ),
+      ],
     );
   }
 }

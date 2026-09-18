@@ -43,7 +43,7 @@ import '../../features/admin/presentation/screens/admin_academie_players_list_sc
 import '../../features/fantasy/presentation/screens/fantasy_team_builder_screen.dart';
 import '../../features/fantasy/presentation/screens/fantasy_my_team_screen.dart';
 import '../../features/fantasy/presentation/screens/fantasy_leaderboard_screen.dart';
-import '../../features/fantasy/presentation/screens/admin_fantasy_rounds_screen.dart';
+import '../../features/fantasy/presentation/screens/admin_fantasy_settings_screen.dart';
 
 class AuthChangeNotifier extends ChangeNotifier {
   AuthChangeNotifier() {
@@ -381,7 +381,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ---- Fantasy (admin) ----
       GoRoute(
         path: '/admin/fantasy/rounds',
-        builder: (c, s) => const AdminFantasyRoundsScreen(),
+        builder: (c, s) => const AdminFantasySettingsScreen(),
       ),
     ],
   );

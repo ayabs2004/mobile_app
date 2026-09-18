@@ -16,8 +16,8 @@ import '../../../players/presentation/providers/public_players_provider.dart';
 import '../../../coaches/presentation/providers/coachs_provider.dart';
 import '../../../coaches/data/models/coach_model.dart';
 import '../../../players/data/models/player_model.dart';
+import '../../../fantasy/data/models/fantasy_sport_settings_model.dart';
 import '../../../fantasy/presentation/providers/fantasy_provider.dart';
-import '../../../fantasy/data/models/fantasy_round_model.dart';
 import '../../../fantasy/core/fantasy_sport_utils.dart';
 
 class HomeSearchResult {
@@ -307,27 +307,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   sliver: SliverToBoxAdapter(
                     child: Consumer(
                       builder: (context, ref, _) {
-                        final roundAsync = ref.watch(
-                          currentFantasyRoundProvider(
+                        final settingsAsync = ref.watch(
+                          fantasySportSettingsProvider(
                               selectedSportForFantasy!.id),
                         );
-                        return roundAsync.when(
+                        return settingsAsync.when(
                           loading: () => const _FantasyBanner(
-                            round: null,
+                            settings: null,
                             loading: true,
                             sportId: null,
                             sportName: null,
                           ),
-                          error: (e, __) => Container(
-                            padding: const EdgeInsets.all(16),
-                            color: Colors.red.withValues(alpha: 0.2),
-                            child: Text(
-                              'Erreur DB Fantasy (la table fantasy_rounds a dû être supprimée) : $e',
-                              style: const TextStyle(color: Colors.redAccent),
-                            ),
-                          ),
-                          data: (round) => _FantasyBanner(
-                            round: round,
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (settings) => _FantasyBanner(
+                            settings: settings,
                             loading: false,
                             sportId: selectedSportForFantasy!.id,
                             sportName: selectedSportForFantasy.name,
@@ -852,17 +845,15 @@ class _SportChip extends StatelessWidget {
 }
 
 /// Bannière d'accès au module Fantasy, affichée en haut du Home.
-/// - Si un round est ouvert : affiche son nom + accès rapide (composer,
-///   mon équipe, classement).
-/// - Si aucun round n'est actif : affiche un état neutre non cliquable.
+/// Toujours affichée pour les sports concernés (foot/hand).
 class _FantasyBanner extends StatelessWidget {
-  final FantasyRoundModel? round;
+  final FantasySportSettingsModel? settings;
   final bool loading;
   final String? sportId;
   final String? sportName;
 
   const _FantasyBanner({
-    required this.round,
+    required this.settings,
     required this.loading,
     required this.sportId,
     required this.sportName,
@@ -890,13 +881,10 @@ class _FantasyBanner extends StatelessWidget {
       );
     }
 
-    final hasOpenRound = round != null && round!.isOpen;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: hasOpenRound ? AppTheme.logoGradient : null,
-        color: hasOpenRound ? null : AppTheme.surfaceColor,
+        gradient: AppTheme.logoGradient,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
