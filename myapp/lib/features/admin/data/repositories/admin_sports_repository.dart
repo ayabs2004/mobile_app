@@ -3,6 +3,15 @@ import '../../../sports/data/models/sport_model.dart';
 import '../../../sports/data/models/competition_model.dart';
 
 class AdminSportsRepository {
+  Future<void> updateCompetitionOrder(List<String> orderedIds) async {
+    for (int i = 0; i < orderedIds.length; i++) {
+      await SupabaseConfig.client
+          .from('competitions')
+          .update({'display_order': i})
+          .eq('id', orderedIds[i]);
+    }
+  }
+
   Future<List<SportModel>> getAllSports() async {
     final res = await SupabaseConfig.client
         .from('sports')

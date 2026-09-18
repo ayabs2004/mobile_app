@@ -611,7 +611,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Consumer(
                   builder: (context, ref, _) {
                     final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
-                    if (currentSport == null || !currentSport.hasCoaches) {
+                    if (currentSport == null) {
                       return const SliverToBoxAdapter(child: SizedBox.shrink());
                     }
 
@@ -668,7 +668,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Consumer(
                   builder: (context, ref, _) {
                     final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
-                    if (currentSport == null || !currentSport.hasAmateurs) {
+                    if (currentSport == null) {
                       return const SliverToBoxAdapter(child: SizedBox.shrink());
                     }
 
@@ -725,7 +725,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Consumer(
                   builder: (context, ref, _) {
                     final currentSport = sportsAsync.valueOrNull?.firstWhere((s) => s.id == _selectedSportId);
-                    if (currentSport == null || !currentSport.hasAcademies) {
+                    if (currentSport == null) {
                       return const SliverToBoxAdapter(child: SizedBox.shrink());
                     }
 

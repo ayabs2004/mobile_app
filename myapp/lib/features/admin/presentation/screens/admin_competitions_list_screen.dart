@@ -118,19 +118,6 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
     );
   }
 
-  int _competitionOrder(CompetitionModel competition) {
-    final match = RegExp(r'ligue\s*([0-9]+)', caseSensitive: false)
-        .firstMatch(competition.name);
-    return match != null ? int.parse(match.group(1)!) : 9999;
-  }
-
-  int _competitionComparator(CompetitionModel a, CompetitionModel b) {
-    final orderA = _competitionOrder(a);
-    final orderB = _competitionOrder(b);
-    if (orderA != orderB) return orderA.compareTo(orderB);
-    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sportsAsync = ref.watch(adminSportsListProvider);
@@ -157,91 +144,90 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
             child: Text(ErrorUtils.friendlyMessage(e),
                 style: const TextStyle(color: AppTheme.textSecondary))),
         data: (competitions) {
-          final orderedCompetitions = [...competitions]..sort(_competitionComparator);
-          return ListView(
+          final orderedCompetitions = [...competitions]..sort((a,b) => a.displayOrder.compareTo(b.displayOrder));
+          return ReorderableListView.builder(
             padding: const EdgeInsets.all(20),
-            children: [
-              // Compétitions
-              for (final competition in orderedCompetitions)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Material(
-                    color: AppTheme.surfaceColor,
+            itemCount: orderedCompetitions.length + 1,
+            onReorder: (oldIndex, newIndex) {
+              if (oldIndex >= orderedCompetitions.length) return; // Don't move Amateurs
+              if (newIndex > orderedCompetitions.length) newIndex = orderedCompetitions.length;
+              if (oldIndex < newIndex) newIndex -= 1;
+              
+              final item = orderedCompetitions.removeAt(oldIndex);
+              orderedCompetitions.insert(newIndex, item);
+              
+              final orderedIds = orderedCompetitions.map((c) => c.id).toList();
+              ref.read(adminSportsRepositoryProvider).updateCompetitionOrder(orderedIds);
+            },
+            itemBuilder: (context, index) {
+              if (index == orderedCompetitions.length) {
+                return Container(
+                  key: const ValueKey('amateurs_section'),
+                  child: _buildSpecialSection(
+                    context,
+                    'Amateurs',
+                    Icons.groups,
+                    () => context.push(
+                      '/admin/sports/${sport.id}/amateurs',
+                      extra: sport,
+                    ),
+                  ),
+                );
+              }
+              
+              final competition = orderedCompetitions[index];
+              return Padding(
+                key: ValueKey(competition.id),
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Material(
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(14),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: () => context.push(
-                        '/admin/sports/${sport.id}/competitions/${competition.id}/players',
-                        extra: {'competition': competition, 'sport': sport},
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(competition.name,
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600)),
-                                  const Text('Voir les joueurs',
-                                      style: TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12)),
-                                ],
-                              ),
+                    onTap: () => context.push(
+                      '/admin/sports/${sport.id}/competitions/${competition.id}/players',
+                      extra: {'competition': competition, 'sport': sport},
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(competition.name,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600)),
+                                const Text('Voir les joueurs',
+                                    style: TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 12)),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined,
-                                  color: AppTheme.textSecondary),
-                              onPressed: () => _showCompetitionDialog(context, ref,
-                                  existing: competition),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.redAccent),
-                              onPressed: () =>
-                                  _confirmAndDelete(context, ref, competition),
-                            ),
-                            const Icon(Icons.chevron_right,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined,
                                 color: AppTheme.textSecondary),
-                          ],
-                        ),
+                            onPressed: () => _showCompetitionDialog(context, ref,
+                                existing: competition),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.redAccent),
+                            onPressed: () =>
+                                _confirmAndDelete(context, ref, competition),
+                          ),
+                          const Icon(Icons.drag_handle,
+                              color: AppTheme.textSecondary),
+                        ],
                       ),
                     ),
                   ),
                 ),
-              // Sections spéciales (toujours visibles)
-              _buildSpecialSection(
-                context,
-                'Coachs',
-                Icons.sports,
-                () => context.push(
-                  '/admin/sports/${sport.id}/coaches',
-                  extra: sport,
-                ),
-              ),
-              _buildSpecialSection(
-                context,
-                'Amateurs',
-                Icons.groups,
-                () => context.push(
-                  '/admin/sports/${sport.id}/amateurs',
-                  extra: sport,
-                ),
-              ),
-              _buildSpecialSection(
-                context,
-                'Académies',
-                Icons.school,
-                () => context.push(
-                  '/admin/sports/${sport.id}/academies',
-                  extra: sport,
-                ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),

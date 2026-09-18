@@ -4,6 +4,7 @@ class CompetitionModel {
   final String name;
   final String slug;
   final String? level; // "Professional", "Amateur"... tag libre, optionnel
+  final int displayOrder;
 
   CompetitionModel({
     required this.id,
@@ -11,6 +12,7 @@ class CompetitionModel {
     required this.name,
     required this.slug,
     this.level,
+    this.displayOrder = 0,
   });
 
   factory CompetitionModel.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class CompetitionModel {
       name: json['name'] as String,
       slug: json['slug'] as String,
       level: json['level'] as String?,
+      displayOrder: json['display_order'] as int? ?? 0,
     );
   }
 
@@ -28,5 +31,6 @@ class CompetitionModel {
         'name': name,
         'slug': slug,
         'level': level,
+        'display_order': displayOrder,
       };
 }
