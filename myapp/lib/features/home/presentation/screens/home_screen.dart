@@ -112,11 +112,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // doit apparaître, et pour filtrer les joueurs proposés dans l'équipe.
     final sportsList = sportsAsync.valueOrNull;
     SportModel? selectedSportForFantasy;
-    if (sportsList != null && sportsList.isNotEmpty) {
-      selectedSportForFantasy = sportsList.firstWhere(
-        (s) => s.id == _selectedSportId,
-        orElse: () => sportsList.first,
-      );
+    if (sportsList != null && sportsList.isNotEmpty && _selectedSportId != null) {
+      final match = sportsList.where((s) => s.id == _selectedSportId);
+      if (match.isNotEmpty) selectedSportForFantasy = match.first;
     }
     final showFantasy = selectedSportForFantasy != null &&
         isFantasySport(selectedSportForFantasy);
