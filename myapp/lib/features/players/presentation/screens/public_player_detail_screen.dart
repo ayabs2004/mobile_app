@@ -234,27 +234,29 @@ class _PublicPlayerDetailScreenState
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  Row(
-                                    children: [
-                                      if (player.position != null)
-                                        Text(
-                                          _positionLabel(player.position),
-                                          style: const TextStyle(
-                                            color: AppTheme.accentGreen,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
+                                  Builder(builder: (context) {
+                                    final primaryRole = player.position != null
+                                        ? _positionLabel(player.position)
+                                        : player.niveau;
+                                    return Row(
+                                      children: [
+                                        if (primaryRole != null && primaryRole.isNotEmpty)
+                                          Text(
+                                            primaryRole,
+                                            style: const TextStyle(
+                                              color: AppTheme.accentGreen,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
-                                        ),
-                                      if (player.position != null &&
-                                          details.teamName != null)
-                                        const Text(
-                                          '  ·  ',
-                                          style: TextStyle(
-                                              color:
-                                                  AppTheme.textSecondary,
-                                              fontSize: 16),
-                                        ),
-                                      if (details.teamName != null)
+                                        if (primaryRole != null && primaryRole.isNotEmpty && details.teamName != null)
+                                          const Text(
+                                            '  ·  ',
+                                            style: TextStyle(
+                                                color: AppTheme.textSecondary,
+                                                fontSize: 16),
+                                          ),
+                                        if (details.teamName != null)
                                         Flexible(
                                           child: Text(
                                             details.teamName!,
@@ -269,7 +271,8 @@ class _PublicPlayerDetailScreenState
                                           ),
                                         ),
                                     ],
-                                  ),
+                                  );
+                                  }),
                                 ],
                               ),
                             ),
@@ -441,6 +444,7 @@ class _PublicPlayerDetailScreenState
                 Icons.shield_outlined, 'Équipe', details.teamName!),
             const Divider(color: Colors.white12, height: 24),
           ],
+
           _buildInfoRow(Icons.numbers, 'Numéro',
               player.jerseyNumber?.toString() ?? 'N/A'),
           const Divider(color: Colors.white12, height: 24),
