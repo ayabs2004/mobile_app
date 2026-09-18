@@ -81,6 +81,7 @@ class PlayerModel {
       'full_name': fullName,
       'slug': slug,
       'position': position,
+      'niveau': niveau,
       'jersey_number': jerseyNumber,
       'nationality': nationality,
       'profile_image_url': profileImageUrl,
