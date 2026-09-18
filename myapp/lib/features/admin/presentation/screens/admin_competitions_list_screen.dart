@@ -118,79 +118,6 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _toggleSection(BuildContext context, WidgetRef ref, String sectionKey, bool value) async {
-    try {
-      await ref.read(adminSportsRepositoryProvider).updateSport(sport.id, {
-        sectionKey: value,
-      });
-      ref.invalidate(adminSportsListProvider);
-      ref.invalidate(sportsListProvider);
-      if (context.mounted) {
-        SnackBarUtils.showSuccess(context, value ? 'Section activée' : 'Section désactivée');
-      }
-    } catch (e) {
-      if (context.mounted) {
-        SnackBarUtils.showError(context, ErrorUtils.friendlyMessage(e));
-      }
-    }
-  }
-
-  void _showAddMenu(BuildContext context, WidgetRef ref, SportModel currentSport) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.surfaceColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Ajouter une section', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.emoji_events, color: AppTheme.accentGreen),
-              title: const Text('Compétition Pro (Ligue 1, etc.)', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                _showCompetitionDialog(context, ref);
-              },
-            ),
-            if (!currentSport.hasCoaches)
-              ListTile(
-                leading: const Icon(Icons.sports, color: AppTheme.accentGreen),
-                title: const Text('Activer la section Coachs', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleSection(context, ref, 'has_coaches', true);
-                },
-              ),
-            if (!currentSport.hasAmateurs)
-              ListTile(
-                leading: const Icon(Icons.groups, color: AppTheme.accentGreen),
-                title: const Text('Activer la section Amateurs', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleSection(context, ref, 'has_amateurs', true);
-                },
-              ),
-            if (!currentSport.hasAcademies)
-              ListTile(
-                leading: const Icon(Icons.school, color: AppTheme.accentGreen),
-                title: const Text('Activer la section Académies', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleSection(context, ref, 'has_academies', true);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   int _competitionOrder(CompetitionModel competition) {
     final match = RegExp(r'ligue\s*([0-9]+)', caseSensitive: false)
         .firstMatch(competition.name);
@@ -219,7 +146,7 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Nouvelle section',
-            onPressed: () => _showAddMenu(context, ref, currentSport),
+            onPressed: () => _showCompetitionDialog(context, ref),
           ),
         ],
       ),
@@ -285,19 +212,34 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+              // Sections spéciales (toujours visibles)
+              _buildSpecialSection(
+                context,
+                'Coachs',
+                Icons.sports,
+                () => context.push(
+                  '/admin/sports/${sport.id}/coaches',
+                  extra: sport,
                 ),
-              if (currentSport.hasAmateurs)
-                _buildSpecialSection(
-                  context,
-                  ref,
-                  'Amateurs',
-                  Icons.groups,
-                  () => _toggleSection(context, ref, 'has_amateurs', false),
-                  onTap: () => context.push(
-                    '/admin/sports/${sport.id}/amateurs',
-                    extra: sport,
-                  ),
+              ),
+              _buildSpecialSection(
+                context,
+                'Amateurs',
+                Icons.groups,
+                () => context.push(
+                  '/admin/sports/${sport.id}/amateurs',
+                  extra: sport,
                 ),
+              ),
+              _buildSpecialSection(
+                context,
+                'Académies',
+                Icons.school,
+                () => context.push(
+                  '/admin/sports/${sport.id}/academies',
+                  extra: sport,
+                ),
+              ),
             ],
           );
         },
@@ -307,12 +249,10 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
 
   Widget _buildSpecialSection(
     BuildContext context,
-    WidgetRef ref,
     String title,
     IconData icon,
-    VoidCallback onDelete, {
     VoidCallback? onTap,
-  }) {
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -342,25 +282,6 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
                                 fontSize: 12)),
                     ],
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.redAccent),
-                  onPressed: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: AppTheme.surfaceColor,
-                        title: Text('Désactiver la section $title ?', style: const TextStyle(color: Colors.white)),
-                        content: const Text('Cette section ne sera plus affichée sur l\'accueil.', style: TextStyle(color: AppTheme.textSecondary)),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Désactiver', style: TextStyle(color: Colors.redAccent))),
-                        ],
-                      ),
-                    );
-                    if (confirmed == true) onDelete();
-                  },
                 ),
                 if (onTap != null)
                   const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
