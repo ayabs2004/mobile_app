@@ -212,6 +212,7 @@ class AdminCompetitionsListScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                ),
               // Sections spéciales (toujours visibles)
               _buildSpecialSection(
                 context,
