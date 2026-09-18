@@ -60,9 +60,9 @@ class AccountScreen extends ConsumerWidget {
               try {
                 await ref.read(authControllerProvider.notifier).updateProfile(fullName: nameCtrl.text, phone: phoneCtrl.text);
                 if (ctx.mounted) Navigator.pop(ctx);
-                SnackbarUtils.showSuccess(context, 'Profil mis à jour');
+                SnackBarUtils.showSuccess(context, 'Profil mis à jour');
               } catch (e) {
-                SnackbarUtils.showError(context, 'Erreur');
+                SnackBarUtils.showError(context, 'Erreur');
               }
             },
             child: const Text('Enregistrer', style: TextStyle(color: AppTheme.accentGreen)),
@@ -143,9 +143,9 @@ class _InfoTile extends StatelessWidget {
               try {
                 await ref.read(authControllerProvider.notifier).updateProfile(fullName: nameCtrl.text, phone: phoneCtrl.text);
                 if (ctx.mounted) Navigator.pop(ctx);
-                SnackbarUtils.showSuccess(context, 'Profil mis à jour');
+                SnackBarUtils.showSuccess(context, 'Profil mis à jour');
               } catch (e) {
-                SnackbarUtils.showError(context, 'Erreur');
+                SnackBarUtils.showError(context, 'Erreur');
               }
             },
             child: const Text('Enregistrer', style: TextStyle(color: AppTheme.accentGreen)),
