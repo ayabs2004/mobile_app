@@ -58,6 +58,7 @@ class PlayerModel {
       fullName: json['full_name'] as String,
       slug: json['slug'] as String,
       position: json['position'] as String?,
+      niveau: json['niveau'] as String?,
       jerseyNumber: json['jersey_number'] as int?,
       nationality: json['nationality'] as String?,
       profileImageUrl: _fixSvgUrl(json['profile_image_url'] as String?),

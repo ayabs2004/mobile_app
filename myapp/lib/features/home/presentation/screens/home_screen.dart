@@ -1428,6 +1428,24 @@ class _PlayerRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
+                        if (player.niveau != null && player.niveau!.isNotEmpty) ...[
+                          Text(
+                            player.niveau!,
+                            style: const TextStyle(
+                              color: AppTheme.accentGreen,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (playerWithDetails.teamName != null)
+                            const Text(
+                              '  •  ',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
                         if (playerWithDetails.teamName != null)
                           Flexible(
                             child: Text(
